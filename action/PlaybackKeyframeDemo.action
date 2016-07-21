@@ -1,0 +1,11 @@
+#part 1 = goal, sent by client
+string bag_file_name
+bool eef_only
+---
+#part 2 = result, sent by server
+#how many keyframes recorded
+duration time_elapsed
+---
+#part 3 = feedback, sent periodically during execution
+duration time_elapsed
+
