@@ -12,11 +12,21 @@ import moveit_msgs.msg
 import moveit_msgs.srv
 import geometry_msgs.msg
 
-from my_awesome_code.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
+#this is pointing to the hello world manipulation stuff...so you need to have hello_world in your catkin_ws...needs to point to hlpr_manipulation! sorry!
+import manipulation
+from manipulation.manipulator import *
+from manipulation.arm_moveit import *
+
+from hlpr_kinesthetic_teaching.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 from sensor_msgs.msg import JointState
 
 # PlaybackKFDemoAction:
+# This is an action server that executes the demo stored in the bagfile given in the goal
+# The goal should also specify whether or not this is to be an eef_only target, or full arm joints target
+# Uses MoveIt to get a plan
+# TBD: calling moveit execute on the plan doesn't work, why?
+# TBD: also using wpi_jaco stuff through ArmMoveIt and Manipulator doesn't work, why? 
 
 class PlaybackKFDemoAction(object):
 
@@ -27,34 +37,21 @@ class PlaybackKFDemoAction(object):
     moveit_commander.roscpp_initialize(sys.argv)
     self.server = actionlib.SimpleActionServer('playback_keyframe_demo', PlaybackKeyframeDemoAction, execute_cb=self.do_playback_keyframe_demo, auto_start=False)
     self.server.start()
-    self.robot = moveit_commander.RobotCommander()
-    self.scene = moveit_commander.PlanningSceneInterface()
-    self.group = [moveit_commander.MoveGroupCommander("arm"), moveit_commander.MoveGroupCommander("gripper"),
-                  moveit_commander.MoveGroupCommander("head")]
-    
-  def goto_jointTargetInput(self,target_joint):
-    ## input: target joint angles (JointState) of the robot
-    self.group[0].set_planner_id("RRTConnectkConfigDefault")
+    self.arm_planner = ArmMoveIt()
+    self.manipulator = Manipulator()
 
-    print 'setting target joint positions'
-    print target_joint
-    print 'planning frame:'
-    print self.group[0].get_planning_frame()
-    self.group[0].set_joint_value_target(target_joint)
-    planAns=self.group[0].plan()
-    self.group[0].execute(planAns)  
-
-  def goto_eefTargetInput(self,target_eef):
-    ## input: target eef (Pose) of the robot
-    self.group[0].set_pose_target(target_eef)
-    self.group[0].set_planner_id("RRTConnectkConfigDefault")
-    planAns=self.group[0].plan()
-    self.group[0].execute(planAns)
+  def sendPlan(self,plannedTra):
+    traj_goal = FollowJointTrajectoryGoal()
+    traj_goal.trajectory = plannedTra.joint_trajectory
+    self.manipulator.arm.smooth_joint_trajectory_client.send_goal(traj_goal)#sendWaypointTrajectory(traj_goal)
+    self.manipulator.arm.smooth_joint_trajectory_client.wait_for_result()   
+    return self.manipulator.arm.smooth_joint_trajectory_client.get_result() 
 
 
   #start performing the playback_keyframe_demo action
   #goal includes the bagfile name for this demo
   def do_playback_keyframe_demo(self, goal):
+    ## input: keyframe demo goal has bagfile name and eef_only bool
     self.start_time = time.time()
     self.bag = rosbag.Bag(goal.bag_file_name)
 
@@ -65,7 +62,8 @@ class PlaybackKFDemoAction(object):
           self.goto_eefTargetInput(msg.data)
       else:
         for topic, msg, t in self.bag.read_messages(topics=['joint_states']):
-          self.goto_jointTargetInput(msg)
+          plan = self.arm_planner.plan_jointTargetInput(msg)
+          self.sendPlan(plan)
 
       self.bag.close()
       

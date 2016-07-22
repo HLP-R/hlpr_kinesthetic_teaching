@@ -5,7 +5,7 @@ import time
 import actionlib
 import rosbag
 
-from my_awesome_code.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
+from hlpr_kinesthetic_teaching.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 
 def feedback_call(feedback):
