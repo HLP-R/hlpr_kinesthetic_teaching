@@ -5,7 +5,7 @@ import time
 import actionlib
 import rosbag
 
-from my_awesome_code.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
+from hlpr_kinesthetic_teaching.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 
 pub = rospy.Publisher('record_demo_frame', Int32, queue_size=10)

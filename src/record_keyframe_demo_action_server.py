@@ -6,7 +6,7 @@ import time
 import rosbag
 import string
 
-from my_awesome_code.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
+from hlpr_kinesthetic_teaching.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose
