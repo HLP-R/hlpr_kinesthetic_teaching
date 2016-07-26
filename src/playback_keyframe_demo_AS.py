@@ -40,12 +40,29 @@ class PlaybackKFDemoAction(object):
     self.arm_planner = ArmMoveIt()
     self.manipulator = Manipulator()
 
+    # Get joints for the arm from the arm group that we want to plan with
+    self._arm_joints = self.arm_planner.group[0].get_active_joints()
+
   def sendPlan(self,plannedTra):
     traj_goal = FollowJointTrajectoryGoal()
     traj_goal.trajectory = plannedTra.joint_trajectory
     self.manipulator.arm.smooth_joint_trajectory_client.send_goal(traj_goal)#sendWaypointTrajectory(traj_goal)
     self.manipulator.arm.smooth_joint_trajectory_client.wait_for_result()   
     return self.manipulator.arm.smooth_joint_trajectory_client.get_result() 
+
+  def _get_arm_joint_values(self, msg):
+
+    # Cycle through the active joints and populate
+    # a dictionary for those values
+    joint_values = dict()
+    for joint_name in self._arm_joints:
+        # Find that joint name in msg
+        idx = msg.name.index(joint_name)
+ 
+        # Populate the joint message in a dictionary
+        joint_values[joint_name] = msg.position[idx]
+ 
+    return joint_values
 
 
   #start performing the playback_keyframe_demo action
@@ -62,8 +79,18 @@ class PlaybackKFDemoAction(object):
           self.goto_eefTargetInput(msg.data)
       else:
         for topic, msg, t in self.bag.read_messages(topics=['joint_states']):
-          plan = self.arm_planner.plan_jointTargetInput(msg)
-          self.sendPlan(plan)
+
+          # Pull out the joint values for the arm from the message
+          joint_values = self._get_arm_joint_values(msg)
+
+          # Ask the arm planner to plan for that joint target from current position
+          plan = self.arm_planner.plan_jointTargetInput(joint_values)
+
+          # Check if we have a valid plan
+          if len(plan.joint_trajectory.points) < 1:
+            print "Error: no plan found"
+          else:
+            self.sendPlan(plan)
 
       self.bag.close()
       
