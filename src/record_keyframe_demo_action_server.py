@@ -23,6 +23,7 @@ class RecordKFDemoAction(object):
 
   demo_done = False
   rec_whole_trajectory = False
+  as_started = False
   bagfile_name = String()
 
   current_jt_st = JointState()
@@ -46,36 +47,37 @@ class RecordKFDemoAction(object):
   def eef_callback(self, msg):
     self.current_eef_st = msg
 
-  #keyframe message triggers recording of \joint_state to \demo_data
-  #Important...this callback assumed to run after do_record_keyframe_demo()
+  #keyframe message triggers recording of \joint_state and \eef_pose
+  #Important...if this callback happens before do_record_keyframe_demo(), it will wait
   #TBD come up with a convention for trigger values, etc.]
   # Current funcionality
-  #    0 = Start Trajectory Demo (doesn't work, bag file gets corrupted for some reason)
+  #    0 = Start Trajectory Demo 
   #    1 = Keyframe demo: Start Here 
   #    2 = Keyframe demo: Go Here  
   #    3 = Keyframe or Traj demo: End Here
   def keyframe_callback(self, msg):
+    #if the first keyframe message is sent before the do_record_keyframe_demo,  
+    #then we should wait, so we know what bag file to open
+    while self.as_started == False:
+      continue  
+
     if msg.data == 1:  #start message keyframe demo
       print 'recording first keyframe now! starting rosbag'
-      print self.bagfile_name
-      self.bag = rosbag.Bag(self.bagfile_name, 'w')
+      self.write_demo_data()
+    elif msg.data == 2: #rec another keyframe
+      self.write_demo_data()
     elif msg.data == 0: #start message traj demo
       print 'starting trajectory demo, starting rosbag'
-      print self.bagfile_name
-      self.bag = rosbag.Bag(self.bagfile_name, 'w')
       self.rec_whole_trajectory = True
     elif msg.data == 3: #end message
       print 'recording last keyframe now!'
+      self.write_demo_data()
       self.demo_done = True
+      self.rec_whole_trajectory = False
     elif msg.data != 2: 
       print 'record_demo_frame should be called with 0-3'
       return
-   
-    self.write_demo_data()
- 
-    if self.demo_done == True:
-      self.bag.close()
-      print 'bag file closed'
+
  
   #write current state to the open bag
   #TBD: don't hard code what data is saved
@@ -87,24 +89,34 @@ class RecordKFDemoAction(object):
   #start performing the record_keyframe_demo action
   #goal includes the bagfile name to use for this demo
   def do_record_keyframe_demo(self, goal):
+    print 'starting record keyframe demo action, bag file is'
     self.keyframe_count = 0
     self.demo_done = False
     self.write_whole_trajectory = False
-    self.bagfile_name = goal.bag_file_name
+    self.bag = rosbag.Bag(goal.bag_file_name, 'w')
+    print goal.bag_file_name
+    self.rate = rospy.Rate(10)
+    self.as_started = True
 
     while self.demo_done == False:
       if self.server.is_preempt_requested():
         self.result.num_keyframes = self.keyframe_count
         self.server.set_preempted(self.result, "record keyframe demo preempted")  
         if self.demo_done == False:
-          self.bag.close()      
-        print 'preempted'
-        return
+          self.bag.close()             
+          print 'preempted'       
+          return
+      elif self.rec_whole_trajectory == True:
+        self.write_demo_data()       
+        self.rate.sleep()
       elif self.keyframe_count > 0: #wait to start feedback after first keyframe 
         self.feedback.num_keyframes = self.keyframe_count
         self.server.publish_feedback(self.feedback)
         time.sleep(.5)  #throttle feedback messages 
- 
+
+    self.bag.close()
+    self.as_started = False
+    print 'bag file closed'
     self.result.num_keyframes = self.keyframe_count
     self.server.set_succeeded(self.result, "Record Keyframe Demo completed successfully")
     return
