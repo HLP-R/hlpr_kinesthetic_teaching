@@ -46,6 +46,7 @@ from abc import ABCMeta, abstractmethod
 from std_msgs.msg import String
 
 from hlpr_speech_recognition import speech_listener
+from hlpr_speech_synthesis import speech_synthesizer
 from hlpr_kinesthetic_teaching.srv import KinestheticInteract
 from hlpr_manipulation_utils.manipulator import Gripper
 from wpi_jaco_msgs.srv import GravComp
@@ -82,6 +83,9 @@ class KinestheticInteraction:
 
         # Initialize speech dictionary
         self._init_speech_dictionary()
+
+        # Initialize speech synthesis
+        self.speech = speech_synthesizer.SpeechSynthesizer()
 
         # Set flag for whether we're in kinesthetic mode
         self.active = False # Default is false
@@ -157,24 +161,30 @@ class KinestheticInteraction:
     # Extend this class and the functions in the next section 
 
     def _greet(self):
+        self.speech.say("Hello!")
         print "Hello!"
 
     def _hear_check(self):
+        self.speech.say("I heard ya!")
         print "I heard ya!"
         
     def _open_hand(self):
         self.gripper.open()
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
+        self.speech.say("OK")
 
     def _close_hand(self):
         self.gripper.close()
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
+        self.speech.say("OK")
 
     def _open_hand_left(self):
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
+        self.speech.say("OK")
 
     def _close_hand_left(self):
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
+        self.speech.say("OK")
 
     def _start_grav_comp(self):
         response = self.gravity_comp(True)
@@ -182,6 +192,7 @@ class KinestheticInteraction:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
         else:
             rospy.logerr("Gravity compensation is not active.")
+        self.speech.say("OK")
 
     def _end_grav_comp(self):
         response = self.gravity_comp(False)
@@ -189,21 +200,27 @@ class KinestheticInteraction:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
         else:
             rospy.logerr("Gravity compensation is still active.")
+        self.speech.say("OK")
 
     def _demonstration_start(self):
         self.demonstration_start(self.last_command)
+        self.speech.say("OK")
 
     def _save_keyframe(self):
         self.demonstration_keyframe(self.last_command)
+        self.speech.say("OK")
 
     def _demonstration_end(self):
         self.demonstration_end(self.last_command)
+        self.speech.say("OK")
 
     def _record_all_start(self):
         self.demonstration_start_trajectory(self.last_command)
+        self.speech.say("OK")
 
     def _record_all_end(self):
         self.demonstration_end_trajectory(self.last_command)
+        self.speech.say("OK")
 
     ## all of the functions that need to be filled in with your own behaviors  
 
