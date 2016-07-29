@@ -1,5 +1,4 @@
 #part 1 = goal, sent by client
-uint32 start_demo
 string bag_file_name
 ---
 #part 2 = result, sent by server
