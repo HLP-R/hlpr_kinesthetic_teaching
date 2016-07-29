@@ -126,7 +126,7 @@ class RecordKFDemoAction(object):
     self.write_whole_trajectory = False
     self.bag = rosbag.Bag(goal.bag_file_name, 'w')
     print goal.bag_file_name
-    self.rate = rospy.Rate(10)
+    self.rate = rospy.Rate(100)
     self.as_started = True
 
     while self.demo_done == False:

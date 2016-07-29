@@ -30,116 +30,93 @@
 
 # Author: Andrea Thomaz, athomaz@diligentdroids.com
 
+# This is an example of how to make use of the record_keyframe_demo_action_server class
+
 import rospy
 import time
 import actionlib
 import rosbag
 
+#import the messages related to the RecordKeyframeDemoAction
 from hlpr_kinesthetic_teaching.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 
+#in order to record demonstrations, you just publish the right message to this topic
 pub = rospy.Publisher('record_demo_frame', Int32, queue_size=10)
 
-demo_num = 0
-
+#the action server implements a feedback service, if you want to 
+#monitor feedback during the recording action make a callback function
+#currently the feedback is number of keyframes (or time elapsed in traj demo)
 def feedback_call(feedback):
     print('[Feedback] num keyframes: %f'%feedback.num_keyframes)
 
 rospy.init_node('record_keyframe_demo_action_client')
+
+#make your action client
 client = actionlib.SimpleActionClient('record_keyframe_demo', RecordKeyframeDemoAction)
 client.wait_for_server()
 
+#send a goal to the action client, with the name of the bag_file
 goal = RecordKeyframeDemoGoal()
-goal.start_demo = 1.0
-
-goal.bag_file_name = 'demo_data_'+str(demo_num)
+goal.bag_file_name = 'demo_data_0'
 client.send_goal(goal, feedback_cb=feedback_call)
 
+## Example keyframe demo: 
 
-print 'testing a KF demo with lots of frames, goal file name = '
-print goal.bag_file_name
-
+## Send a start here command "1" 
 pub.publish(1)
 
+## Then send any number of record keyframe "2" 
 frames = 0
-while frames < 100: 
+while frames < 10: 
   pub.publish(2)
   time.sleep(.1)
   frames += 1
 
+## Send an end here command "3"
 pub.publish(3)
-demo_num += 1
 
+## check the result...
 client.wait_for_result()
 print('[Result] State: %d'%(client.get_state()))
 print('[Result] Status: %s'%(client.get_goal_status_text()))
 print('[Result] Num Keyframes Recorded: %f'%(client.get_result().num_keyframes))
 
-print 'see what the bag file is like:'
-bag = rosbag.Bag(goal.bag_file_name)
-for topic, msg, t in bag.read_messages(topics=['joint_states', 'eef_pose']):
-  print msg
-bag.close()
+## uncomment this if you want to print out the bag file you just recorded
+##print 'see what the bag file is like:'
+##bag = rosbag.Bag(goal.bag_file_name)
+##for topic, msg, t in bag.read_messages(topics=['joint_states', 'eef_pose']):
+##  print msg
+##bag.close()
+
 
 
 ################
 
+## Example trajectory demo: 
 
+print 'testing a trajectory demo, will record for 1 sec, at 100hz'
 
-goal.bag_file_name = 'demo_data_'+str(demo_num)
+# keep using the same action client, just send it new goals each
+# time you want to record a new demo
+goal.bag_file_name = 'demo_data_1'
 client.send_goal(goal, feedback_cb=feedback_call)
 
-raw_input("press any key to start a demo with 3 keyframes")
-
-print 'goal file name = '
-print goal.bag_file_name
-
-raw_input("press any key to record keyframe number 1 (start)")
-pub.publish(1)
-
-raw_input("press any key to record keyframe number 2 (mid)")
-pub.publish(2)
-
-raw_input("press any key to record keyframe number 2 (final)")
-pub.publish(3)
-
-demo_num += 1
-
-client.wait_for_result()
-print('[Result] State: %d'%(client.get_state()))
-print('[Result] Status: %s'%(client.get_goal_status_text()))
-print('[Result] Num Keyframes Recorded: %f'%(client.get_result().num_keyframes))
-
-print 'see what the bag file is like:'
-bag = rosbag.Bag(goal.bag_file_name)
-for topic, msg, t in bag.read_messages(topics=['joint_states', 'eef_pose']):
-  print msg
-bag.close()
-
-
-####################
-
-print 'testing a trajectory demo'
-goal.bag_file_name = 'demo_data_'+str(demo_num)
-client.send_goal(goal, feedback_cb=feedback_call)
-
-time.sleep(1.0)
 pub.publish(0)
 time.sleep(1.0)
 pub.publish(3)
 
-demo_num += 1
-
 client.wait_for_result()
 print('[Result] State: %d'%(client.get_state()))
 print('[Result] Status: %s'%(client.get_goal_status_text()))
 print('[Result] Num Keyframes Recorded: %f'%(client.get_result().num_keyframes))
 
-print 'see what the bag file is like:'
-bag = rosbag.Bag(goal.bag_file_name)
-for topic, msg, t in bag.read_messages(topics=['joint_states', 'eef_pose']):
-  print msg
-bag.close()
+## uncomment this if you want to print out the bag file you just recorded
+##print 'see what the bag file is like:'
+##bag = rosbag.Bag(goal.bag_file_name)
+##for topic, msg, t in bag.read_messages(topics=['joint_states', 'eef_pose']):
+##  print msg
+##bag.close()
 
 
 
