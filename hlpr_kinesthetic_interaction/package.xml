@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package>
+  <name>hlpr_kinesthetic_interaction</name>
+  <version>1.0.0</version>
+  <description>The hlpr_kinesthetic_interaction package connects speech to different actions the robot performs such as releasing the arm and replying</description>
+
+  <author email="vchu@diligentdroids.com">Vivian Chu</author>
+  <maintainer email="vchu@diligentdroids.com">Vivian Chu</maintainer>
+
+  <license>BSD</license>
+
+  <url type="website">https://github.com/HLP-R/hlpr_kinesthetic_teaching/wiki</url>
+  <url type="bugtracker">https://github.com/HLP-R/hlpr_kinesthetic_teaching/issues</url>
+  <url type="repository">https://github.com/HLP-R/hlpr_kinesthetic_teaching</url>
+
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>wpi_jaco_wrapper</build_depend> 
+
+  <run_depend>rospy</run_depend>
+  <run_depend>wpi_jaco_wrapper</run_depend> 
+
+  <export>
+
+  </export>
+</package>

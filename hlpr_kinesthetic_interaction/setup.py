@@ -5,7 +5,7 @@ from catkin_pkg.python_setup import generate_distutils_setup
 
 # fetch values from package.xml
 setup_args = generate_distutils_setup(
-    packages=['hlpr_kinesthetic_teaching'],
+    packages=['hlpr_kinesthetic_interaction'],
     package_dir={'': 'src'},
 )
 

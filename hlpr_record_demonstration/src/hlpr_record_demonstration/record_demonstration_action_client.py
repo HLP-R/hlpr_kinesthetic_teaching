@@ -38,7 +38,7 @@ import actionlib
 import rosbag
 
 #import the messages related to the RecordKeyframeDemoAction
-from hlpr_kinesthetic_teaching.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
+from hlpr_record_demonstration.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 
 #in order to record demonstrations, you just publish the right message to this topic
