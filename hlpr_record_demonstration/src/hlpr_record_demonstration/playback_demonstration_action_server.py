@@ -43,11 +43,11 @@ import moveit_msgs.srv
 import geometry_msgs.msg
 
 #this is pointing to the hello world manipulation stuff...so you need to have hello_world in your catkin_ws...needs to point to hlpr_manipulation! sorry!
-import manipulation
-from manipulation.manipulator import *
-from manipulation.arm_moveit import *
+import hlpr_manipulation_utils
+from hlpr_manipulation_utils.manipulator import *
+from hlpr_manipulation_utils.arm_moveit import *
 
-from hlpr_kinesthetic_teaching.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
+from hlpr_record_demonstration.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 from sensor_msgs.msg import JointState
 

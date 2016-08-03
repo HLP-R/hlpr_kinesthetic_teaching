@@ -47,7 +47,7 @@ from std_msgs.msg import String
 
 from hlpr_speech_recognition import speech_listener
 from hlpr_speech_synthesis import speech_synthesizer
-from hlpr_kinesthetic_teaching.srv import KinestheticInteract
+from hlpr_kinesthetic_interaction.srv import KinestheticInteract
 from hlpr_manipulation_utils.manipulator import Gripper
 from wpi_jaco_msgs.srv import GravComp
 

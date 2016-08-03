@@ -1,0 +1,11 @@
+#! /usr/bin/env python
+import rospy
+from hlpr_kinesthetic_interaction.srv import KinestheticInteract
+
+if __name__ == '__main__':
+    print "Waiting for kinesthetic interaction service"
+    rospy.wait_for_service('kinesthetic_interaction')
+    kinesthetic_teaching = rospy.ServiceProxy('kinesthetic_interaction', KinestheticInteract)
+    if (kinesthetic_teaching(True)):
+        print "Kinesthetic interaction enabled"
+
