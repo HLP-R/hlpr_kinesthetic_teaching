@@ -106,7 +106,7 @@ class KinestheticInteraction:
         rospy.Subscriber(self.sub_topic, String, self._speechCB, queue_size=1) 
 
         rospy.loginfo("Finished initializing Kinesthetic Interaction node")
-        rospy.spin()
+        #rospy.spin()
 
     def _init_speech_dictionary(self):
 

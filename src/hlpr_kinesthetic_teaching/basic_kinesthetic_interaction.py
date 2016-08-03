@@ -45,9 +45,9 @@ from kinesthetic_interaction import KinestheticInteraction
 class BasicKinestheticInteraction(KinestheticInteraction):
 
     def __init__(self):
-
         # Initialize the node
         super(BasicKinestheticInteraction, self).__init__()
+        rospy.spin()
 
 
     ## all of the functions that need to be filled in with your own behaviors  
