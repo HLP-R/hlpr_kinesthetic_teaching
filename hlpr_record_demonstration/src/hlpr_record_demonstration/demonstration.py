@@ -106,7 +106,7 @@ class Demonstration():
         self.filename = os.path.join(self.data_location, self.filename)
 
         # Update what demo number we're on
-        self.demo_num = self._get_num_files(self.data_location)
+        self.demo_num +=1
 
         rospy.loginfo("Filename is %s", self.filename)
 
@@ -141,7 +141,7 @@ class Demonstration():
  
     """Simple function that checks how many demos we've written"""
     def _get_num_files(self, dir_path):
-        return len([name for name in os.listdir(dir_path) if os.path.isfile(name)])
+        return len(os.listdir(dir_path))
 
     """Simple function that makes sure the data directory specified exists"""
     def _ensure_dir(self, f): 
