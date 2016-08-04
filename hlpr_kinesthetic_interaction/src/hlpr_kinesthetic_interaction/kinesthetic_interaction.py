@@ -94,10 +94,10 @@ class KinestheticInteraction:
         k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
         # Get access to the gravity compensation service
-        rospy.loginfo("Waiting for gravity compenstation service")
+        rospy.logwarn("Waiting for gravity compenstation service")
         rospy.wait_for_service(KinestheticInteraction.GRAVITY_COMP_SERVICE)
         self.gravity_comp = rospy.ServiceProxy(KinestheticInteraction.GRAVITY_COMP_SERVICE, GravComp)
-        rospy.loginfo("Gravity compenstation service loaded")
+        rospy.logwarn("Gravity compenstation service loaded")
 
         # Initialize the gripper
         self.gripper = Gripper()

@@ -21,6 +21,7 @@
 
   <run_depend>rospy</run_depend>
   <run_depend>wpi_jaco_wrapper</run_depend> 
+  <run_depend>hlpr_record_demonstration</run_depend> 
 
   <export>
 
