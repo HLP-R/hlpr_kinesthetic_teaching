@@ -41,37 +41,50 @@ import rospy
 
 from std_msgs.msg import String
 from kinesthetic_interaction import KinestheticInteraction
+from hlpr_record_demonstration.demonstration import Demonstration
 
 class BasicKinestheticInteraction(KinestheticInteraction):
 
     def __init__(self):
+
         # Initialize the node
         super(BasicKinestheticInteraction, self).__init__()
+
+        # Initialize demonstration
+        self.demo = Demonstration()
+
         rospy.spin()
 
 
     ## all of the functions that need to be filled in with your own behaviors  
 
     def apply_hand_action(self, cmd, hand):
-        print "hand"
+        print cmd
+        self.demo.write_keyframe() # We write a keyframe when the hand opens or closes
 
     def apply_arm_action(self, cmd, arm):
         print "arm"
 
     def demonstration_start(self, cmd):
-        print "start"
+        # Start KF recording
+        self.demo.init_demo() # can add custom names if you like in this function
+        self.demo.start_keyframe()
 
     def demonstration_keyframe(self, cmd):
-        print "keyframe"
+        self.demo.write_keyframe()
 
     def demonstration_end(self, cmd):
-        print "end"
+        self.demo.stop_recording()
 
     def demonstration_start_trajectory(self, cmd):
-        print cmd
+        # Start trajectory recording
+        self.demo.init_demo() # can add custom names if you like in this function
+        self.demo.start_trajectory()
  
     def demonstration_end_trajectory(self, cmd):
-        print cmd
+        self.demo.stop_recording()
+
+
 
     
 if __name__== "__main__":

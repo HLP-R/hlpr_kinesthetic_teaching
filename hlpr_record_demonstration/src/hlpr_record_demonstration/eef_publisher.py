@@ -39,6 +39,7 @@ from sensor_msgs.msg import JointState
 
 def eef_pose_pub():
   rospy.init_node('eef_publisher')
+  rospy.loginfo("Publishing right EEF gripper location")
   listener = tf.TransformListener()
   pub = rospy.Publisher('eef_pose', Pose, queue_size=10)
   rate = rospy.Rate(100)

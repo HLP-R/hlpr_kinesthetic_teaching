@@ -52,6 +52,16 @@ from geometry_msgs.msg import Pose
 
 class RecordKFDemoAction(object):
 
+  # Current funcionality
+  #    0 = Start Trajectory Demo 
+  #    1 = Keyframe demo: Start Here 
+  #    2 = Keyframe demo: Go Here  
+  #    3 = Keyframe or Traj demo: End Here
+  TRAJ_START = 0
+  KF_START = 1
+  KF = 2
+  DEMO_END = 3
+
   demo_done = False
   rec_whole_trajectory = False
   as_started = False
@@ -64,11 +74,13 @@ class RecordKFDemoAction(object):
   result = RecordKeyframeDemoResult()
 
   def __init__(self):
+    rospy.loginfo("Initializing demonstration recording action server")
     self.server = actionlib.SimpleActionServer('record_keyframe_demo', RecordKeyframeDemoAction, execute_cb=self.do_record_keyframe_demo, auto_start=False)
     self.server.start()
     self.listen_record_msgs = rospy.Subscriber('record_demo_frame', Int32, self.keyframe_callback)
     self.listen_jt = rospy.Subscriber('joint_states', JointState, self.jt_st_callback)
     self.listen_eef = rospy.Subscriber('eef_pose', Pose, self.eef_callback)
+    rospy.loginfo("Finished initializing demonstration recording action server")
     
   #subscriber for joint_state topic, update most recent data
   def jt_st_callback(self, msg):
@@ -92,15 +104,15 @@ class RecordKFDemoAction(object):
     while self.as_started == False:
       continue  
 
-    if msg.data == 1:  #start message keyframe demo
+    if msg.data == RecordKFDemoAction.KF_START:  #start message keyframe demo
       print 'recording first keyframe now! starting rosbag'
       self.write_demo_data()
-    elif msg.data == 2: #rec another keyframe
+    elif msg.data == RecordKFDemoAction.KF: #rec another keyframe
       self.write_demo_data()
-    elif msg.data == 0: #start message traj demo
+    elif msg.data == RecordKFDemoAction.TRAJ_START: #start message traj demo
       print 'starting trajectory demo, starting rosbag'
       self.rec_whole_trajectory = True
-    elif msg.data == 3: #end message
+    elif msg.data == RecordKFDemoAction.DEMO_END: #end message
       print 'recording last keyframe now!'
       self.write_demo_data()
       self.demo_done = True
