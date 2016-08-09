@@ -59,6 +59,7 @@ client.wait_for_server()
 #send a goal to the action client, with the name of the bag_file
 goal = RecordKeyframeDemoGoal()
 goal.bag_file_name = 'demo_data_0'
+goal.trajectory = False
 client.send_goal(goal, feedback_cb=feedback_call)
 
 ## Example keyframe demo: 

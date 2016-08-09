@@ -45,6 +45,11 @@ from hlpr_record_demonstration.demonstration import Demonstration
 
 class BasicKinestheticInteraction(KinestheticInteraction):
 
+    OK = "OK"
+    ERROR_WRITE = "Did not write"
+    ERROR_START = "Did not start"
+    ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?" 
+
     def __init__(self):
 
         # Initialize the node
@@ -69,52 +74,52 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     def apply_hand_action(self, cmd, hand):
         rospy.loginfo("Received command: %s", cmd)
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             status = self.demo.write_keyframe() # We write a keyframe when the hand opens or closes
-            self._speech_helper(status, "OK", "Did not write")
+            self._speech_helper(status, self.OK, self.ERROR_WRITE)
 
     def apply_arm_action(self, cmd, arm):
         rospy.loginfo("Received command: %s", cmd)
 
     def demonstration_start(self, cmd):
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             # Start KF recording
             self.demo.init_demo() # can add custom names if you like in this function
             status = self.demo.start_keyframe()
-            self._speech_helper(status, "OK", "Did not start")
+            self._speech_helper(status, self.OK, self.ERROR_START)
 
     def demonstration_keyframe(self, cmd):
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             status = self.demo.write_keyframe()
-            self._speech_helper(status, "OK", "Did not write.")
+            self._speech_helper(status, self.OK, self.ERROR_WRITE)
 
     def demonstration_end(self, cmd):
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             status = self.demo.stop_recording()
-            self._speech_helper(status, "That was demo number "+str(self.demo.demo_num), "Did not write.")
+            self._speech_helper(status, "That was demo number "+str(self.demo.demo_num), self.ERROR_WRITE)
 
     def demonstration_start_trajectory(self, cmd):
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             # Start trajectory recording
             self.demo.init_demo() # can add custom names if you like in this function
             status = self.demo.start_trajectory()
-            self._speech_helper(status, "OK", "Did not start")
+            self._speech_helper(status, self.OK, self.ERROR_START)
  
     def demonstration_end_trajectory(self, cmd):
         if self.demo is None:
-            rospy.logerr("Demonstration not ready. Did the demo server finish loading?")
+            rospy.logerr(self.ERROR_DEMO)
         else:
             status = self.demo.stop_recording()
-            self._speech_helper(status, "That was demo number "+str(self.demo.demo_num), "Did not write.")
+            self._speech_helper(status, "That was demo number "+str(self.demo.demo_num), self.ERROR_WRITE)
 
     
 if __name__== "__main__":
