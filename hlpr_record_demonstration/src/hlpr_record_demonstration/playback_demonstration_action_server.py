@@ -29,6 +29,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Author: Andrea Thomaz, athomaz@diligentdroids.com
+# Edited 8/9/2016: Vivian Chu, vchu@diligentdroids.com - works with EEF
 
 import sys
 import copy
@@ -38,25 +39,19 @@ import time
 import rosbag
 import string
 import moveit_commander
-import moveit_msgs.msg
-import moveit_msgs.srv
-import geometry_msgs.msg
 
-#this is pointing to the hello world manipulation stuff...so you need to have hello_world in your catkin_ws...needs to point to hlpr_manipulation! sorry!
-import hlpr_manipulation_utils
 from hlpr_manipulation_utils.manipulator import *
 from hlpr_manipulation_utils.arm_moveit import *
 
 from hlpr_record_demonstration.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
 from std_msgs.msg import Int32, String
 from sensor_msgs.msg import JointState
+from geometry_msgs.msg import Pose
 
 # PlaybackKFDemoAction:
 # This is an action server that executes the demo stored in the bagfile given in the goal
 # The goal should also specify whether or not this is to be an eef_only target, or full arm joints target
 # Uses MoveIt to get a plan
-# TBD: calling moveit execute on the plan doesn't work, why?
-# TBD: also using wpi_jaco stuff through ArmMoveIt and Manipulator doesn't work, why? 
 
 class PlaybackKFDemoAction(object):
 
@@ -103,24 +98,26 @@ class PlaybackKFDemoAction(object):
     self.bag = rosbag.Bag(goal.bag_file_name)
 
     while not self.server.is_preempt_requested():
-      if goal.eef_only == True:
-        for topic, msg, t in self.bag.read_messages(topics=['eef_pose']):
-          print msg.data
-          self.goto_eefTargetInput(msg.data)
-      else:
-        for topic, msg, t in self.bag.read_messages(topics=['joint_states']):
-
-          # Pull out the joint values for the arm from the message
-          joint_values = self._get_arm_joint_values(msg)
-
+  
+      for topic, msg, t in self.bag.read_messages(topics=[goal.target_topic]):
+        # Check if we need to convert the msg into joint values
+        if goal.eef_only:
           # Ask the arm planner to plan for that joint target from current position
-          plan = self.arm_planner.plan_jointTargetInput(joint_values)
+          pt = Pose(msg.position, msg.orientation)
+          plan = self.arm_planner.plan_poseTargetInput(pt)
 
-          # Check if we have a valid plan
-          if len(plan.joint_trajectory.points) < 1:
-            print "Error: no plan found"
-          else:
-            self.sendPlan(plan)
+        else:
+          # Pull out the joint values for the arm from the message
+          pts = self._get_arm_joint_values(msg)
+          
+          # Ask the arm planner to plan for that joint target from current position
+          plan = self.arm_planner.plan_jointTargetInput(pts)
+
+        # Check if we have a valid plan
+        if plan == None or len(plan.joint_trajectory.points) < 1:
+          print "Error: no plan found"
+        else:
+          self.sendPlan(plan)
 
       self.bag.close()
       

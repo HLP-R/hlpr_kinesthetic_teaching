@@ -50,6 +50,7 @@ time.sleep(1.0)
 goal = PlaybackKeyframeDemoGoal()
 goal.bag_file_name = 'demo_data_0'
 goal.eef_only = False
+goal.target_topic = 'joint_states'
 client.send_goal(goal, feedback_cb=feedback_call)
 
 client.wait_for_result()

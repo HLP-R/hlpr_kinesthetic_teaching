@@ -78,9 +78,12 @@ class Demonstration():
 
         # Init empty filename
         self.filename = ""
+
+        # Flag to keep tracking of recording
+        self.recording = False
  
         # Initialize the demonstration action server
-        self.record_pub = rospy.Publisher('record_demo_frame', Int32, queue_size=10)
+        self.record_pub = rospy.Publisher('record_demo_frame', Int32, queue_size=1)
         self.record_client = actionlib.SimpleActionClient('record_keyframe_demo', RecordKeyframeDemoAction)
         rospy.logwarn("Waiting for record keyframe demo server to load")
         self.record_client.wait_for_server() 
@@ -93,7 +96,7 @@ class Demonstration():
 
         # Check if we have a custom demo name
         if custom_name == None:
-            self.filename = "_".join((self.data_prefix, str(self.demo_num)))
+            self.filename = "_".join((self.data_prefix, "%02d" % self.demo_num))
         else:
             self.filename = custom_name
       
@@ -108,37 +111,51 @@ class Demonstration():
         # Update what demo number we're on
         self.demo_num +=1
 
-        rospy.loginfo("Filename is %s", self.filename)
 
-
-    """Start a trajectory demonstration."""
+    """Start a trajectory demonstration. 
+    returns True/False depending on if we actually publish a command
+    """
     def start_trajectory(self):
-        self._send_client_goal()
-        self.record_pub.publish(RecordKFDemoAction.TRAJ_START)
+        status = self._send_client_goal(traj=True)
+        return status
 
-    """End a demonstration (keyframe or trajectory)"""
+    """End a demonstration (keyframe or trajectory)
+    returns True/False depending on if we actually publish a command
+    """
     def stop_recording(self):
         self.record_pub.publish(RecordKFDemoAction.DEMO_END)
-        self.record_client.wait_for_result()
-        print('[Result] State: %d'%(self.record_client.get_state()))
-        print('[Result] Status: %s'%(self.record_client.get_goal_status_text()))
-        print('[Result] Num Poses Recorded: %f'%(self.record_client.get_result().num_keyframes))
-        
+        status = self.record_client.wait_for_result()
+        if self.recording and status: # check for result
+            #print('[Result] State: %d'%(self.record_client.get_state()))
+            #print('[Result] Status: %s'%(self.record_client.get_goal_status_text()))
+            print('[Result] Num Poses Recorded: %f'%(self.record_client.get_result().num_keyframes))
+            self.recording = False
+            return True
+        else:
+            return False
+ 
     """Start a keyframe demonstration"""
     def start_keyframe(self):
-        self._send_client_goal()
-        self.record_pub.publish(RecordKFDemoAction.KF_START)
-
+        status = self._send_client_goal()
+        return status
+    
     """Write a keyframe"""
     def write_keyframe(self):
-        self.record_pub.publish(RecordKFDemoAction.KF)
+        if self.recording:
+            self.record_pub.publish(RecordKFDemoAction.KF)
+        return self.recording
 
     """Sets up a client goal with the proper bag name"""
-    def _send_client_goal(self):
+    def _send_client_goal(self, traj=False):
+        if self.recording: # Already recording
+            return False
         goal = RecordKeyframeDemoGoal()
         goal.bag_file_name = self.filename
+        goal.trajectory=traj
         self.record_client.send_goal(goal, feedback_cb=self._feedback_cb)
- 
+        self.recording = True
+        return True
+         
     """Simple function that checks how many demos we've written"""
     def _get_num_files(self, dir_path):
         return len(os.listdir(dir_path))
@@ -150,7 +167,8 @@ class Demonstration():
             os.makedirs(d)
 
     def _feedback_cb(self, feedback):
-        print('[Feedback] num keyframes: %f'%feedback.num_keyframes)
+        #print('[Feedback] num keyframes: %f'%feedback.num_keyframes)
+        pass
  
         
 if __name__ == '__main__':
