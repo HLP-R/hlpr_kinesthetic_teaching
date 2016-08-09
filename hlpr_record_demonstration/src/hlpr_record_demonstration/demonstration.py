@@ -130,7 +130,9 @@ class Demonstration():
             #print('[Result] Status: %s'%(self.record_client.get_goal_status_text()))
             print('[Result] Num Poses Recorded: %f'%(self.record_client.get_result().num_keyframes))
             self.recording = False
-        return status       
+            return True
+        else:
+            return False
  
     """Start a keyframe demonstration"""
     def start_keyframe(self):
