@@ -57,18 +57,6 @@ class KinestheticInteraction:
     # TODO: REMOVE THIS AND PUT SOMEONE GLOBAL?
     RIGHT = 0
     LEFT = 1
-
-    OPEN_HAND = "OPEN_HAND"
-    CLOSE_HAND = "CLOSE_HAND"
-    OPEN_HAND_LEFT = "OPEN_HAND_LEFT"
-    CLOSE_HAND_LEFT = "CLOSE_HAND_LEFT"
-    START_GC = "START_GC"
-    END_GC = "END_GC"
-    KEYFRAME_START = "KEYFRAME_START"
-    KEYFRAME = "KEYFRAME"
-    KEYFRAME_END = "KEYFRAME_END"
-    TRAJ_START =  "TRAJ_START"
-    TRAJ_END = "TRAJ_END"
     
     GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp"
 
@@ -106,28 +94,21 @@ class KinestheticInteraction:
         rospy.Subscriber(self.sub_topic, String, self._speechCB, queue_size=1) 
 
         rospy.loginfo("Finished initializing Kinesthetic Interaction node")
-        #rospy.spin()
 
     def _init_speech_dictionary(self):
 
-        # Use dictionaries to match switch cases to functions
-        self.switcher = {
+        self.switcher = dict()
+    
+        # Cycle through all of the possible speech commands
+        # NOTE: This assumes that there exist a function with the syntax
+        # self._speech_command. Otherwise, the command is ignored
+        for command in self.speech_listener.keywords_to_commands.keys():
 
-            # Simple test for greetting first
-            "GREETING": self._greet,
-            "HEAR_CHECK": self._hear_check,
-            KinestheticInteraction.OPEN_HAND: self._open_hand,
-            KinestheticInteraction.CLOSE_HAND: self._close_hand,
-            KinestheticInteraction.OPEN_HAND_LEFT: self._open_hand_left,
-            KinestheticInteraction.CLOSE_HAND_LEFT: self._close_hand_left,
-            KinestheticInteraction.START_GC: self._start_grav_comp,
-            KinestheticInteraction.END_GC: self._end_grav_comp,
-            KinestheticInteraction.KEYFRAME_START: self._demonstration_start,
-            KinestheticInteraction.KEYFRAME: self._save_keyframe,
-            KinestheticInteraction.KEYFRAME_END: self._demonstration_end,
-            KinestheticInteraction.TRAJ_START: self._record_all_start,
-            KinestheticInteraction.TRAJ_END: self._record_all_end, 
-        }
+            cmd_function = "_"+command.lower()
+            if cmd_function in dir(self):
+                self.switcher[command] = eval("self."+cmd_function)
+            else:
+                rospy.loginfo("No function for command: %s", command)
 
     def toggleKMode(self, req):
         self.active = req.enableKInteract # pull out what the request sent
@@ -145,11 +126,12 @@ class KinestheticInteraction:
             # Get the function from switcher dictionary
             func = self.switcher.get(self.last_command, self._command_not_found)         
        
-            # execute the function?
+            # execute the function
             func()
 
         else:
             rospy.logwarn("Kinesthetic Mode is inactive currently. Command: %s ignored" % self.last_command)
+            self.speech.say("Kinesthetic Mode is inactive")
 
     def _command_not_found(self):
         rospy.logwarn("Speech command unknown: %s" % self.last_command)
@@ -160,7 +142,7 @@ class KinestheticInteraction:
     # These are the commands that are set in advance and correspond to actual robot state changes
     # Extend this class and the functions in the next section 
 
-    def _greet(self):
+    def _greeting(self):
         self.speech.say("Hello!")
         print "Hello!"
 
@@ -171,56 +153,47 @@ class KinestheticInteraction:
     def _open_hand(self):
         self.gripper.open()
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
-        self.speech.say("OK")
 
     def _close_hand(self):
         self.gripper.close()
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
-        self.speech.say("OK")
 
     def _open_hand_left(self):
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
-        self.speech.say("OK")
 
     def _close_hand_left(self):
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
-        self.speech.say("OK")
 
-    def _start_grav_comp(self):
+    def _start_gc(self):
         response = self.gravity_comp(True)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
+            self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is not active.")
-        self.speech.say("OK")
 
-    def _end_grav_comp(self):
+    def _end_gc(self):
         response = self.gravity_comp(False)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
+            self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is still active.")
-        self.speech.say("OK")
 
-    def _demonstration_start(self):
+    def _keyframe_start(self):
         self.demonstration_start(self.last_command)
-        self.speech.say("OK")
 
-    def _save_keyframe(self):
+    def _keyframe(self):
         self.demonstration_keyframe(self.last_command)
-        self.speech.say("OK")
 
-    def _demonstration_end(self):
+    def _keyframe_end(self):
         self.demonstration_end(self.last_command)
-        self.speech.say("OK")
 
     def _record_all_start(self):
         self.demonstration_start_trajectory(self.last_command)
-        self.speech.say("OK")
 
     def _record_all_end(self):
         self.demonstration_end_trajectory(self.last_command)
-        self.speech.say("OK")
 
     ## all of the functions that need to be filled in with your own behaviors  
 
