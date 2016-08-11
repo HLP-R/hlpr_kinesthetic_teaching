@@ -36,6 +36,7 @@ import rospy
 import time
 import actionlib
 import rosbag
+from hlpr_record_demonstration.record_demonstration_action_server import RecordKFDemoAction
 
 #import the messages related to the RecordKeyframeDemoAction
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
@@ -65,17 +66,17 @@ client.send_goal(goal, feedback_cb=feedback_call)
 ## Example keyframe demo: 
 
 ## Send a start here command "1" 
-pub.publish(1)
+#pub.publish(1) # no longer need
 
 ## Then send any number of record keyframe "2" 
 frames = 0
 while frames < 10: 
-  pub.publish(2)
+  pub.publish(RecordKFDemoAction.KF)
   time.sleep(.1)
   frames += 1
 
 ## Send an end here command "3"
-pub.publish(3)
+pub.publish(RecordKFDemoAction.DEMO_END)
 
 ## check the result...
 client.wait_for_result()
@@ -103,9 +104,10 @@ print 'testing a trajectory demo, will record for 1 sec, at 100hz'
 goal.bag_file_name = 'demo_data_1'
 client.send_goal(goal, feedback_cb=feedback_call)
 
-pub.publish(0)
+#pub.publish(0) # no longer need - sending goal starts
 time.sleep(1.0)
-pub.publish(3)
+pub.publish(RecordKFDemoAction.DEMO_END)
+goal.trajectory = True
 
 client.wait_for_result()
 print('[Result] State: %d'%(client.get_state()))
