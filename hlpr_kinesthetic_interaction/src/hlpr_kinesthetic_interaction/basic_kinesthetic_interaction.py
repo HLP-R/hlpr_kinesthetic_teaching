@@ -53,6 +53,7 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     def __init__(self):
 
         # Initialize the node
+        rospy.init_node("kinesthetic_interaction", anonymous=False) # only one at a time
         super(BasicKinestheticInteraction, self).__init__()
 
         # Initialize demonstration

@@ -62,9 +62,6 @@ class KinestheticInteraction:
 
     def __init__(self):
 
-        # Initialize the node
-        rospy.init_node("kinesthetic_interaction", anonymous=False) # only one at a time
-
         # Initialize the listener class for speech and pull out topic
         self.speech_listener = speech_listener.SpeechListener()
         self.sub_topic = self.speech_listener.recog_topic
