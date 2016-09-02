@@ -110,7 +110,7 @@ def main():
     rospy.init_node("moveit_playback_demonstration")
 
     ROSBAG_PARAM_NAME = "~bagfile"
-    rospy.set_param(ROSBAG_PARAM_NAME, "/home/ddroids/data/demo_01.bag")
+    rospy.set_param(ROSBAG_PARAM_NAME, "~/data/demo_01.bag")
 
     sm = smach.StateMachine(outcomes=['DONE'])
     with sm:
