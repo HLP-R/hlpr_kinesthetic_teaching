@@ -47,15 +47,29 @@ from hlpr_record_demonstration.msg import PlaybackKeyframeDemoAction, PlaybackKe
 
 class MoveitPlaybackBagState(smach.State):
 
-    def __init__(self):
+    def __init__(self, bagfile=None, eef_flag=False, pose_topic="joint_states", bagparam=None):
         # bag_file: the path to bag play to playback
         # eef_flag: True - plan in EEF space, False - plan in joint space
-        # target_topic: the topic that the poses are on (e.g. joint_states, eef_pose)
-        smach.State.__init__(self, outcomes=['playback_finished'], input_keys=['bag_file', 'eef_flag','target_topic'])
+        # pose_topic: the topic that the poses are on (e.g. joint_states, eef_pose)
+        smach.State.__init__(self, outcomes=['playback_finished'])
         self.playback_client = actionlib.SimpleActionClient('playback_keyframe_demo', PlaybackKeyframeDemoAction)
         rospy.logwarn("Warning for playback server to load")
         self.playback_client.wait_for_server()
         rospy.logwarn("Playback server loaded")
+
+        # We can either set the bagfile name when creating the state OR through rosparam
+        if bagfile is None:
+            if bagparam is None:
+                # Error out!
+                rospy.logerr("Exiting: not a valid state. No given bagfile name or rosparam")
+                exit()
+            else:
+                self._bagfile = rospy.get_param(bagparam)
+        else:
+            self._bagfile = bagfile
+
+        self._eef_flag = eef_flag
+        self._pose_topic = pose_topic
 
     def execute(self, userdata):
 
@@ -63,9 +77,9 @@ class MoveitPlaybackBagState(smach.State):
 
         # Create goal and fill in information
         goal = PlaybackKeyframeDemoGoal()
-        goal.bag_file_name = userdata.bag_file
-        goal.eef_only = userdata.eef_flag
-        goal.target_topic = userdata.target_topic
+        goal.bag_file_name = self._bagfile
+        goal.eef_only = self._eef_flag
+        goal.target_topic = self._pose_topic
 
         # Send goal to server
         self.playback_client.send_goal(goal)
@@ -78,7 +92,7 @@ class MoveitPlaybackBagState(smach.State):
 """
 Example below on how to call the state
 
-To run - publish a string to the start_playback topic of the location of the bag file
+To run - publish a string to the start_playback topic
 
 """
 
@@ -86,9 +100,6 @@ To run - publish a string to the start_playback topic of the location of the bag
 def transition_cb(userdata, msg):
 
     rospy.loginfo("Received message to start. Transitioning to playback state.")
-    userdata.bag_file = msg.data
-    userdata.eef_flag = True
-    userdata.target_topic = 'eef_pose'
 
     # Need to return false to break out of this state
     return False
@@ -98,10 +109,19 @@ def main():
 
     rospy.init_node("moveit_playback_demonstration")
 
+    ROSBAG_PARAM_NAME = "~bagfile"
+    rospy.set_param(ROSBAG_PARAM_NAME, "/home/ddroids/data/demo_01.bag")
+
     sm = smach.StateMachine(outcomes=['DONE'])
     with sm:
+        # Simple monitor state
         smach.StateMachine.add('IDLE', smach_ros.MonitorState("/start_playback", String, transition_cb, output_keys=['bag_file', 'eef_flag','target_topic']), transitions={'invalid': 'PLAYBACK', 'valid':'IDLE', 'preempted':'IDLE'})
-        smach.StateMachine.add('PLAYBACK', MoveitPlaybackBagState(), transitions={'playback_finished':'DONE'})
+
+        # Example below on how to set the bag file with a specific state init
+        #smach.StateMachine.add('PLAYBACK', MoveitPlaybackBagState(bagfile="/home/ddroids/data/demo_01.bag", eef_flag=False, pose_topic='joint_states'), transitions={'playback_finished':'DONE'})
+        
+        # Example of passing in a rosparam location for the bagfile name to be
+        smach.StateMachine.add('PLAYBACK', MoveitPlaybackBagState(bagparam=ROSBAG_PARAM_NAME, eef_flag=False, pose_topic='joint_states'), transitions={'playback_finished':'DONE'})
 
     sis = smach_ros.IntrospectionServer('smach_server', sm, '/SM_ROOT')
     sis.start()
