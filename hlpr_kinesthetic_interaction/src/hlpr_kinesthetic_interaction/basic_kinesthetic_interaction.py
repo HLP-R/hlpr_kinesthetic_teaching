@@ -50,17 +50,23 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     ERROR_START = "Did not start"
     ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?" 
 
-    def __init__(self):
+    def __init__(self, spin=True, node_name=None):
+
+        if(node_name):
+            self.node_name = node_name
+        else:
+            self.node_name = "kinesthetic_interaction"
 
         # Initialize the node
-        rospy.init_node("kinesthetic_interaction", anonymous=False) # only one at a time
+        rospy.init_node(self.node_name, anonymous=False) # only one at a time
         super(BasicKinestheticInteraction, self).__init__()
 
         # Initialize demonstration
         self.demo = None
         self.demo = Demonstration()
 
-        rospy.spin()
+        if spin:
+            rospy.spin()
 
     """Simple helper to speak when successful or failed"""
     def _speech_helper(self, flag, success, fail):
