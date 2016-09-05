@@ -13,7 +13,7 @@
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
 # 
-# * Neither the name of hlpr_simulator nor the names of its
+# * Neither the name of hlpr_kinesthetic_teaching nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
 # 
@@ -38,6 +38,7 @@ import actionlib
 import time
 import rosbag
 import string
+import os
 import moveit_commander
 
 from hlpr_manipulation_utils.manipulator import *
@@ -68,6 +69,9 @@ class PlaybackKFDemoAction(object):
     # Get joints for the arm from the arm group that we want to plan with
     self._arm_joints = self.arm_planner.group[0].get_active_joints()
 
+    # Set number of keyframes we'll execute
+    self.KEYFRAME_THRESHOLD = 30
+
   def sendPlan(self,plannedTra):
     traj_goal = FollowJointTrajectoryGoal()
     traj_goal.trajectory = plannedTra.joint_trajectory
@@ -93,12 +97,32 @@ class PlaybackKFDemoAction(object):
   #start performing the playback_keyframe_demo action
   #goal includes the bagfile name for this demo
   def do_playback_keyframe_demo(self, goal):
+    rospy.loginfo("Received playback demo")
     ## input: keyframe demo goal has bagfile name and eef_only bool
     self.start_time = time.time()
-    self.bag = rosbag.Bag(goal.bag_file_name)
 
-    while not self.server.is_preempt_requested():
+    # Check if the bag file is valid
+    # Example path if necessary
+    bag_path = os.path.expanduser(goal.bag_file_name)
   
+    if (not os.path.isfile(bag_path)):
+      error_msg = "Playback bagfile does not exist: %s" % bag_path 
+      self.server.set_aborted(self.result, error_msg)
+      rospy.logerr(error_msg)
+      return
+    else:
+      self.bag = rosbag.Bag(bag_path)
+
+    # Check the number of playback - and warn/stop if we have more than X number of keyframes
+    if self.bag.get_message_count() > self.KEYFRAME_THRESHOLD:
+      error_msg = "Playback Keyframe Demo aborted due to too many frames: %d" % self.bag.get_message_count()
+      self.server.set_aborted(self.result, error_msg)
+      rospy.logerr(error_msg)
+      return
+
+    keyframe_count = 0
+    while not self.server.is_preempt_requested():
+ 
       for topic, msg, t in self.bag.read_messages(topics=[goal.target_topic]):
         # Check if we need to convert the msg into joint values
         if goal.eef_only:
@@ -117,12 +141,16 @@ class PlaybackKFDemoAction(object):
         if plan == None or len(plan.joint_trajectory.points) < 1:
           print "Error: no plan found"
         else:
+          rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
           self.sendPlan(plan)
+          keyframe_count+=1
 
       self.bag.close()
       
       self.result.time_elapsed = rospy.Duration.from_sec(time.time() - self.start_time)
-      self.server.set_succeeded(self.result, "Playback Keyframe Demo completed successfully")
+      complete_msg = "Playback Keyframe Demo completed successfully"
+      self.server.set_succeeded(self.result, complete_msg)
+      rospy.loginfo(complete_msg)
       return
     
     self.result.time_elapsed = rospy.Duration.from_sec(time.time() - start_time)

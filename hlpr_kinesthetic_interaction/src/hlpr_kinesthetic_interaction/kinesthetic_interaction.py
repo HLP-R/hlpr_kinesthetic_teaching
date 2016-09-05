@@ -46,6 +46,7 @@ from abc import ABCMeta, abstractmethod
 from std_msgs.msg import String
 
 from hlpr_speech_recognition.speech_listener import SpeechListener
+from hlpr_speech_msgs.msg import StampedString
 from hlpr_speech_msgs.srv import SpeechService
 from hlpr_speech_synthesis import speech_synthesizer
 from hlpr_kinesthetic_interaction.srv import KinestheticInteract
@@ -98,7 +99,8 @@ class KinestheticInteraction:
         self.gripper = Gripper()
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
-        rospy.Subscriber(self.sub_topic, String, self._speechCB, queue_size=1) 
+        self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
+        rospy.Subscriber(self.sub_topic, self._msg_type, self._speechCB, queue_size=1) 
 
         rospy.loginfo("Finished initializing Kinesthetic Interaction node. Service is currently set to: "+str(self.active))
 
