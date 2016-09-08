@@ -94,6 +94,8 @@ install:
 before_script:
   # source dependencies: install using wstool.
   - cd ~/catkin_ws/src
+  # Depends on speech messages
+  - git clone https://github.com/HLP-R/hlpr_speech.git
   - wstool init
   - if [[ -f $ROSINSTALL_FILE ]] ; then wstool merge $ROSINSTALL_FILE ; fi
   - wstool up

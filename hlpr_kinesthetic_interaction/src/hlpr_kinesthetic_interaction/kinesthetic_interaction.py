@@ -45,7 +45,9 @@ from abc import ABCMeta, abstractmethod
 
 from std_msgs.msg import String
 
-from hlpr_speech_recognition import speech_listener
+from hlpr_speech_recognition.speech_listener import SpeechListener
+from hlpr_speech_msgs.msg import StampedString
+from hlpr_speech_msgs.srv import SpeechService
 from hlpr_speech_synthesis import speech_synthesizer
 from hlpr_kinesthetic_interaction.srv import KinestheticInteract
 from hlpr_manipulation_utils.manipulator import Gripper
@@ -62,9 +64,18 @@ class KinestheticInteraction:
 
     def __init__(self, verbose = True):
 
-        # Initialize the listener class for speech and pull out topic
-        self.speech_listener = speech_listener.SpeechListener()
-        self.sub_topic = self.speech_listener.recog_topic
+        # Get topic that we should be listening to for speech commands
+        self.sub_topic = rospy.get_param(SpeechListener.COMMAND_TOPIC_PARAM, None)
+        if self.sub_topic is None:
+            rospy.logerr("Exiting: No speech topic given, is speech listener running?")
+            exit()
+
+        # Wait for speech listener
+        self.service_topic = rospy.get_param(SpeechListener.SERVICE_TOPIC_PARAM, None)
+        rospy.logwarn("Waiting for speech service")
+        rospy.wait_for_service(self.service_topic)
+        self.speech_service = rospy.ServiceProxy(self.service_topic, SpeechService) 
+        rospy.logwarn("Speech service loaded")
 
         # Initialize speech dictionary
         self._init_speech_dictionary()
@@ -82,7 +93,7 @@ class KinestheticInteraction:
         k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
         # Get access to the gravity compensation service
-        rospy.logwarn("Waiting for gravity compenstation service")
+        rospy.logwarn("Waiting for gravity compensation service")
         rospy.wait_for_service(KinestheticInteraction.GRAVITY_COMP_SERVICE)
         self.gravity_comp = rospy.ServiceProxy(KinestheticInteraction.GRAVITY_COMP_SERVICE, GravComp)
         rospy.logwarn("Gravity compenstation service loaded")
@@ -91,18 +102,20 @@ class KinestheticInteraction:
         self.gripper = Gripper()
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
-        rospy.Subscriber(self.sub_topic, String, self._speechCB, queue_size=1) 
+        self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
+        rospy.Subscriber(self.sub_topic, self._msg_type, self._speechCB, queue_size=1) 
 
-        rospy.loginfo("Finished initializing Kinesthetic Interaction node")
+        rospy.loginfo("Finished initializing Kinesthetic Interaction node. Service is currently set to: "+str(self.active))
 
     def _init_speech_dictionary(self):
 
+        self.keywords = rospy.get_param(SpeechListener.KEYWORDS_PARAM, None)
         self.switcher = dict()
     
         # Cycle through all of the possible speech commands
         # NOTE: This assumes that there exist a function with the syntax
         # self._speech_command. Otherwise, the command is ignored
-        for command in self.speech_listener.keywords_to_commands.keys():
+        for command in self.keywords.keys():
 
             cmd_function = "_"+command.lower()
             if cmd_function in dir(self):
@@ -118,7 +131,12 @@ class KinestheticInteraction:
     def _speechCB(self, msg):
 
         # Pull the speech command
-        self.last_command = self.speech_listener.get_last_command()
+        try:
+            response = self.speech_service(True)
+            self.last_command = response.speech_cmd
+        except rospy.ServiceException:
+            rospy.logerr("No last speech command")
+            self.last_command = None
 
         # Check if we're actively in kinesthetic mode
         if self.active:
