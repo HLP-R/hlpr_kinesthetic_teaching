@@ -60,7 +60,7 @@ class KinestheticInteraction:
     
     GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp"
 
-    def __init__(self):
+    def __init__(self, verbose = True):
 
         # Initialize the listener class for speech and pull out topic
         self.speech_listener = speech_listener.SpeechListener()
@@ -74,6 +74,9 @@ class KinestheticInteraction:
 
         # Set flag for whether we're in kinesthetic mode
         self.active = False # Default is false
+
+	# Set flag for whether to speak responses
+	self.verbose = verbose
     
         # Create a service for kinesthetic mode
         k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
@@ -128,7 +131,8 @@ class KinestheticInteraction:
 
         else:
             rospy.logwarn("Kinesthetic Mode is inactive currently. Command: %s ignored" % self.last_command)
-            self.speech.say("Kinesthetic Mode is inactive")
+	    if self.verbose:
+              self.speech.say("Kinesthetic Mode is inactive")
 
     def _command_not_found(self):
         rospy.logwarn("Speech command unknown: %s" % self.last_command)
@@ -140,11 +144,13 @@ class KinestheticInteraction:
     # Extend this class and the functions in the next section 
 
     def _greeting(self):
-        self.speech.say("Hello!")
+	if self.verbose:
+          self.speech.say("Hello!")
         print "Hello!"
 
     def _hear_check(self):
-        self.speech.say("I heard ya!")
+	if self.verbose:
+          self.speech.say("I heard ya!")
         print "I heard ya!"
         
     def _open_hand(self):
@@ -165,7 +171,8 @@ class KinestheticInteraction:
         response = self.gravity_comp(True)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
-            self.speech.say("OK")
+	    if self.verbose:
+              self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is not active.")
 
@@ -173,7 +180,8 @@ class KinestheticInteraction:
         response = self.gravity_comp(False)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
-            self.speech.say("OK")
+	    if self.verbose:
+              self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is still active.")
 
