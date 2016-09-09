@@ -66,15 +66,10 @@ class Demonstration():
         self.data_folder_name = get_param("data_folder_name", self.DEFAULT_DATA_FOLDER)
         self.data_folder_loc = get_param("data_folder_loc", self.DEFAULT_DIR_LOC)
         self.data_prefix = get_param("data_prefix", self.DEFAULT_DATA_PREFIX)
-        
-        # Create path to data storage
-        self.data_location = os.path.expanduser(os.path.join(self.data_folder_loc,self.data_folder_name))
 
-        # Create directories if needed
-        self._ensure_dir(self.data_location)
-
-        # Determine what demo number we're on
-        self.demo_num = self._get_num_files(self.data_location)
+        # Setup the directory location
+        data_path = os.path.join(self.data_folder_loc,self.data_folder_name) 
+        self._change_demonstration_dir(data_path)
 
         # Init empty filename
         self.filename = ""
@@ -89,10 +84,23 @@ class Demonstration():
         self.record_client.wait_for_server() 
         rospy.logwarn("Record keyframe demo server loaded")
 
+
+    """Changes the demonstration directory convenience helper"""
+    def _change_demonstration_dir(self, directory):
+        # Create path to data storage
+        self.data_location = os.path.expanduser(directory)
+
+        # Create directories if needed
+        self._ensure_dir(self.data_location)
+
+        # Determine what demo number we're on
+        self.demo_num = self._get_num_files(self.data_location)
+
+
     """When a new demonstration bag file needs to be written this function
     generates a new name for it
     """
-    def init_demo(self, custom_name = None, timestamp = False):
+    def init_demo(self, custom_name = None, timestamp = False, new_dir = None):
 
         # Check if we have a custom demo name
         if custom_name == None:
@@ -104,8 +112,14 @@ class Demonstration():
         if (timestamp):
             self.filename += "_"+time.strftime("%Y-%m-%dT%H%M%S") 
 
-        # Append the bag file name
-        self.filename += ".bag"
+        # Check if we need to append the bag file name
+        if not self.filename.endswith('.bag'):
+            self.filename += ".bag"
+
+        # Check if we have a new directory location
+        if (new_dir):
+            self._change_demonstration_dir(new_dir)
+
         self.filename = os.path.join(self.data_location, self.filename)
 
         # Update what demo number we're on
