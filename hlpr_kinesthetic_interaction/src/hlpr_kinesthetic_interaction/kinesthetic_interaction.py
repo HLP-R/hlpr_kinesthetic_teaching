@@ -130,16 +130,14 @@ class KinestheticInteraction:
 
     def _speechCB(self, msg):
 
-        # Pull the speech command
-        try:
-            response = self.speech_service(True)
-            self.last_command = response.speech_cmd
-        except rospy.ServiceException:
-            rospy.logerr("No last speech command")
-            self.last_command = None
-
-        # Check if we're actively in kinesthetic mode
         if self.active:
+            # Pull the speech command
+            try:
+            	response = self.speech_service(True)
+            	self.last_command = response.speech_cmd
+            except rospy.ServiceException:
+            	rospy.logerr("No last speech command")
+            	self.last_command = None
 
             # Get the function from switcher dictionary
             func = self.switcher.get(self.last_command, self._command_not_found)         
