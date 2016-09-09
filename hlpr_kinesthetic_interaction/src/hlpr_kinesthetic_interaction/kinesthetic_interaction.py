@@ -90,7 +90,7 @@ class KinestheticInteraction:
 	self.verbose = verbose
     
         # Create a service for kinesthetic mode
-        k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
+        self.k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
         # Get access to the gravity compensation service
         rospy.logwarn("Waiting for gravity compensation service")
