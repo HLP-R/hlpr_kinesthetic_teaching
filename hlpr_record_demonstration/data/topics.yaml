@@ -3,4 +3,6 @@ msg_type: JointState
 ---
 topic: eef_pose
 msg_type: Pose
-
+---
+topic: /vector/right_gripper/stat
+msg_type: GripperStat
