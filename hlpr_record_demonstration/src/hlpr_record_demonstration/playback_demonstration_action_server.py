@@ -66,8 +66,14 @@ class PlaybackKFDemoAction(object):
     self.arm_planner = ArmMoveIt()
     self.manipulator = Manipulator()
 
+    self.GRIPPER_THRESHOLD = 0.01 # 1cm threshold for moving
+
     # Get joints for the arm from the arm group that we want to plan with
     self._arm_joints = self.arm_planner.group[0].get_active_joints()
+
+    # Get the gripper class
+    self.gripper = dict()
+    self.gripper['right'] = Gripper(prefix='right') # Insert a 2nd gripper here with left if wanted
 
     # Set number of keyframes we'll execute
     self.KEYFRAME_THRESHOLD = 30
@@ -93,7 +99,18 @@ class PlaybackKFDemoAction(object):
  
     return joint_values
 
+  def gripper_helper(self, gripper_topic, pos):
 
+    # Setup gripper position storage
+    self.gripper_pos[gripper_topic] = pos
+
+    # Get right or left
+    gripper_side = gripper_topic.split('/')[2].split('_')[0]
+
+    # Check the gripper state initially and set
+    self.gripper[gripper_side].set_pos(pos)
+
+    
   #start performing the playback_keyframe_demo action
   #goal includes the bagfile name for this demo
   def do_playback_keyframe_demo(self, goal):
@@ -121,9 +138,41 @@ class PlaybackKFDemoAction(object):
       return
 
     keyframe_count = 0
+
+    # Check if we have a gripper topic. If so add it to playback 
+    all_topics = self.bag.get_type_and_topic_info().topics.keys()
+    playback_topics = [goal.target_topic]
+    GRIPPER_TOPIC = 'gripper/stat'
+    gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
+    playback_topics.extend(gripper_topics)
+    gripper_msgs = dict()
+    self.gripper_pos = dict()
+
     while not self.server.is_preempt_requested():
- 
-      for topic, msg, t in self.bag.read_messages(topics=[goal.target_topic]):
+
+      # Cycle through the topics and messages and store them into list for ordering
+      all_messages = dict()
+  
+      for topic, msg, t in self.bag.read_messages(topics=playback_topics):
+
+        if topic not in all_messages:
+          all_messages[topic] = []
+
+        all_messages[topic].append(msg) 
+    
+      # Pull out the playback topic
+      playback_list = all_messages[goal.target_topic]
+      for gripper_topic in gripper_topics: # either one or two grippers
+        gripper_msgs[gripper_topic] = all_messages[gripper_topic]
+
+        # Actually set the gripper value
+        pos = gripper_msgs[gripper_topic][0].requested_position
+        self.gripper_helper(gripper_topic, pos)
+
+      for msg_count in xrange(len(playback_list)):
+
+        msg = playback_list[msg_count]
+
         # Check if we need to convert the msg into joint values
         if goal.eef_only:
           # Ask the arm planner to plan for that joint target from current position
@@ -144,6 +193,15 @@ class PlaybackKFDemoAction(object):
           rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
           self.sendPlan(plan)
           keyframe_count+=1
+
+        # Execute Gripper if needed
+        for gripper_topic in gripper_topics:
+          pos = gripper_msgs[gripper_topic][msg_count].requested_position
+          print pos
+          if abs(pos - self.gripper_pos[gripper_topic]) > self.GRIPPER_THRESHOLD:
+            # Actually set the gripper value
+            self.gripper_helper(gripper_topic, pos)
+      
 
       self.bag.close()
       

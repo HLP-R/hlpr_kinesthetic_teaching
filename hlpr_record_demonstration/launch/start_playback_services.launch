@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Start the demonstration playback action server -->
+    <node name="demo_playback_server" pkg="hlpr_record_demonstration" type="playback_demonstration_action_server.py" respawn="false" output="screen" />
+
+</launch>

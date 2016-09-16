@@ -41,6 +41,7 @@ import rosbag
 import string
 
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
+from vector_msgs.msg import GripperStat
 from std_msgs.msg import Int32, String
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose

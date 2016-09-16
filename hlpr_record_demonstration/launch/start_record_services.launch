@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Start the demonstration recording action server -->
+    <node name="demo_record_server" pkg="hlpr_record_demonstration" type="record_demonstration_action_server.py" respawn="false" output="screen" />
+
+    <!-- Start the EEF publisher node -->
+    <node name="eef_pub" pkg="hlpr_record_demonstration" type="eef_publisher.py" respawn="false" output="screen" />
+
+</launch>
