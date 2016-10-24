@@ -45,7 +45,8 @@ def eef_pose_pub():
   rate = rospy.Rate(100)
   while not rospy.is_shutdown():
     try: 
-      trans, rot = listener.lookupTransform('/base_link', '/right_ee_link', rospy.Time(0))
+      #trans, rot = listener.lookupTransform('/base_link', '/right_ee_link', rospy.Time(0))
+      trans, rot = listener.lookupTransform('/base_link', '/wrist_2', rospy.Time(0))
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
       continue
     msg = Pose()
