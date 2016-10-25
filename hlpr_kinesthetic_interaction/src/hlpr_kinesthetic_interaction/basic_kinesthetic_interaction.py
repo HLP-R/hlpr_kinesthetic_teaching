@@ -42,6 +42,7 @@ import rospy
 from std_msgs.msg import String
 from kinesthetic_interaction import KinestheticInteraction
 from hlpr_record_demonstration.demonstration import Demonstration
+from hlpr_kinesthetic_interaction.jaco_arm import Arm
 
 class BasicKinestheticInteraction(KinestheticInteraction):
 
@@ -50,7 +51,7 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     ERROR_START = "Did not start"
     ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?" 
 
-    def __init__(self, spin=True, node_name=None):
+    def __init__(self, spin=True, node_name=None, arm_class=Arm):
 
         if(node_name):
             self.node_name = node_name
@@ -59,6 +60,10 @@ class BasicKinestheticInteraction(KinestheticInteraction):
 
         # Initialize the node
         rospy.init_node(self.node_name, anonymous=False) # only one at a time
+
+        # Initialize the arm
+        self.arm_class = arm_class
+
         super(BasicKinestheticInteraction, self).__init__()
 
         # Initialize demonstration

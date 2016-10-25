@@ -50,7 +50,6 @@ from hlpr_speech_msgs.msg import StampedString
 from hlpr_speech_msgs.srv import SpeechService
 from hlpr_speech_synthesis import speech_synthesizer
 from hlpr_kinesthetic_interaction.srv import KinestheticInteract
-from hlpr_kinesthetic_interaction.jaco_arm import Arm
 
 class KinestheticInteraction:
 
@@ -58,10 +57,8 @@ class KinestheticInteraction:
     # TODO: REMOVE THIS AND PUT SOMEONE GLOBAL?
     RIGHT = 0
     LEFT = 1
-    
-    GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp"
 
-    def __init__(self, verbose = True, arm_class = Arm()):
+    def __init__(self, verbose = True):
 
         # Get topic that we should be listening to for speech commands
         self.sub_topic = rospy.get_param(SpeechListener.COMMAND_TOPIC_PARAM, None)
@@ -85,14 +82,16 @@ class KinestheticInteraction:
         # Set flag for whether we're in kinesthetic mode
         self.active = False # Default is false
 
-	# Set flag for whether to speak responses
-	self.verbose = verbose
+        # Set flag for whether to speak responses
+        self.verbose = verbose
     
         # Create a service for kinesthetic mode
         self.k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
-	# Get access to the gravity compensation service and gripper
-	self.arm = arm_class
+        # Get access to the gravity compensation service and gripper
+        # WARN: You MUST have set the arm_class variable in the class that
+        # extends this
+        self.arm = self.arm_class
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
@@ -139,7 +138,8 @@ class KinestheticInteraction:
             func()
 
         else:
-            rospy.logwarn("Kinesthetic Mode is inactive currently. Command: %s ignored" % self.last_command)
+            rospy.logwarn("Kinesthetic Mode is inactive currently")
+
 	    if self.verbose:
               self.speech.say("Kinesthetic Mode is inactive")
 
