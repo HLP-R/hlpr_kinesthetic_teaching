@@ -91,7 +91,7 @@ class KinestheticInteraction:
         # Get access to the gravity compensation service and gripper
         # WARN: You MUST have set the arm_class variable in the class that
         # extends this
-        self.arm = self.arm_class
+        self.arm = self.arm_class()
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
