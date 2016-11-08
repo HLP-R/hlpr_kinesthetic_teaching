@@ -89,7 +89,7 @@ class BasicKinestheticInteraction(KinestheticInteraction):
             rospy.logerr(self.ERROR_DEMO)
         else:
             status = self.demo.write_keyframe() # We write a keyframe when the hand opens or closes
-            self._speech_helper(status, self.OK, self.ERROR_WRITE)
+            #self._speech_helper(status, self.OK, self.ERROR_WRITE)
 
     def apply_arm_action(self, cmd, arm):
         rospy.loginfo("Received command: %s", cmd)

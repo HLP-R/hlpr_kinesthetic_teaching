@@ -140,9 +140,6 @@ class KinestheticInteraction:
         else:
             rospy.logwarn("Kinesthetic Mode is inactive currently")
 
-	    if self.verbose:
-              self.speech.say("Kinesthetic Mode is inactive")
-
     def _command_not_found(self):
         rospy.logwarn("Speech command unknown: %s" % self.last_command)
 
@@ -164,10 +161,14 @@ class KinestheticInteraction:
         
     def _open_hand(self):
         self.arm.gripper.open()
+	if self.verbose:
+	    self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _close_hand(self):
         self.arm.gripper.close()
+	if self.verbose:
+	    self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _open_hand_left(self):
