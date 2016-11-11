@@ -47,6 +47,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 from vector_msgs.msg import GripperStat
 from sensor_msgs.msg import JointState
+from control_msgs.msg import FollowJointTrajectoryGoal
 
 class PlaybackKFDemoAction(object):
 
@@ -364,10 +365,11 @@ class PlaybackKFDemoAction(object):
             return self.manipulator.arm.smooth_joint_trajectory_client.get_result()
 
     def _execute_gripper(self, stored_obj):
-        pos = stored_obj.gripper_val[0]
-        if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:
-            self.gripper.set_pos(pos)
-            rospy.sleep(self.GRIPPER_SLEEP_TIME) # Let gripper open/close
+        if stored_obj.gripper_val is not None:
+            pos = stored_obj.gripper_val[0]
+            if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:
+                self.gripper.set_pos(pos)
+                rospy.sleep(self.GRIPPER_SLEEP_TIME) # Let gripper open/close
 
 
     def _save_pkl(self, path_name, data):
