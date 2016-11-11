@@ -40,12 +40,13 @@ import yaml
 
 from collections import defaultdict
 from hlpr_record_demonstration.playback_plan_object import PlaybackPlanObject
-from hlpr_manipulation_utils.manipulator import *
-from hlpr_manipulation_utils.arm_moveit import *
+from hlpr_manipulation_utils.manipulator import Manipulator, Gripper
+from hlpr_manipulation_utils.arm_moveit import ArmMoveIt
 from hlpr_record_demonstration.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
-from geometry_msgs.msg import Pose
-from moveit_msgs.msg import DisplayTrajectory
+from geometry_msgs.msg import Pose, Point, Quaternion
+from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 from vector_msgs.msg import GripperStat
+from sensor_msgs.msg import JointState
 
 class PlaybackKFDemoAction(object):
 
@@ -75,7 +76,7 @@ class PlaybackKFDemoAction(object):
        
         # Setup some gripper values during playback
         self.GRIPPER_THRESHOLD = 0.01 # 1cm threshold for moving
-        self.GRIPPER_SLEEP_TIME = 1.0 # NOTE: not tuned
+        self.GRIPPER_SLEEP_TIME = 2.0 # NOTE: not tuned
 
         # Get joints for the arm from the arm group that we want to plan with
         self._arm_joints = self.arm_planner.group[0].get_active_joints()
@@ -83,7 +84,7 @@ class PlaybackKFDemoAction(object):
         # Display the trajectory publisher
         self.display_trajectory_publisher = rospy.Publisher(
                                         '/move_group/display_planned_path',
-                                        moveit_msgs.msg.DisplayTrajectory, queue_size=1)
+                                        DisplayTrajectory, queue_size=1)
 
         # Store the playback file
         self.playback_file = None
@@ -112,14 +113,19 @@ class PlaybackKFDemoAction(object):
         # Check what kind of file we've received (bag vs. pkl)
         if filename.endswith('.bag'):
             # Process the bag file
-            self.data_store = self._process_bag(filename, goal.target_topic)
+            (self.data_store, joint_flag) = self._process_bag(filename, goal.target_topic)
     
             # Save the created plan in a pkl file in the same directory
-            pkl_name = '.'.join((os.path.splitext(self.playback_file)[0], 'pkl'))
+            if joint_flag:
+                joint_str = 'joint'
+            else:
+                joint_str = 'EEF'
+
+            pkl_name = '.'.join((os.path.splitext(self.playback_file)[0]+'_'+joint_str, 'pkl'))
 
             # Check if the file exists
             #if os.path.isfile(pkl_name):
-            #    err_msg = "Error: existing pkl file exists: %s" % pkl_name
+            #    error_msg = "Error: existing pkl file exists: %s" % pkl_name
             #    self.server.set_aborted(self.result, error_msg)
             #    rospy.logerr(error_msg)
             #    return
@@ -132,8 +138,7 @@ class PlaybackKFDemoAction(object):
             self.data_store = self._load_pkl(filename)
      
         # Check if we're playing the file
-        #if goal.vis_only:
-        if False:
+        if goal.vis_only:
             plan = self._visualize_plan(self.data_store) 
             complete_msg = "Visualized plan successfully"
         else:
@@ -141,6 +146,12 @@ class PlaybackKFDemoAction(object):
             complete_msg = "Executed plan successfully"
 
         # Return success if we've gotten to this point
+        if plan is None:
+            error_msg = "Error: Playback unsuccessful" 
+            self.server.set_aborted(self.result, error_msg)
+            rospy.logerr(error_msg)
+            return
+            
         self.result.planned_trajectory = plan
         self.server.set_succeeded(self.result, complete_msg)
         rospy.loginfo(complete_msg)
@@ -204,10 +215,11 @@ class PlaybackKFDemoAction(object):
         else:
             joint_flag = False
 
+        # We don't store off the original messages because they don't pickle well
+        #data_store['msgs'] = msg_store 
+
         # Create keyframe objects
-        data_store['msgs'] = msg_store
         data_store[self.PLAN_OBJ_KEY] = []
-      
         for i in xrange(total_keyframes):
             # Pull out the expected topics
             plan_obj = PlaybackPlanObject()
@@ -220,7 +232,9 @@ class PlaybackKFDemoAction(object):
             if joint_flag:
                 target = self._get_arm_joint_values(data[0])
             else:
-                target = Pose(data[0].position, data[0].orientation)
+                pos = data[0].position
+                rot = data[0].orientation
+                target = Pose(Point(pos.x, pos.y, pos.z), Quaternion(rot.x, rot.y, rot.z, rot.w))
 
             # Store away values
             plan_obj.set_target_val(target)
@@ -229,7 +243,8 @@ class PlaybackKFDemoAction(object):
 
             # If gripper topic exists - set
             if len(gripper_topic) != 0:
-                plan_obj.set_gripper_val(msg_store[gripper_topic][i])
+                gripper_val = msg_store[gripper_topic][i][0].position
+                plan_obj.set_gripper_val((gripper_val,msg_store[gripper_topic][i][1]))
            
             data_store[self.PLAN_OBJ_KEY].append(plan_obj) 
        
@@ -248,7 +263,7 @@ class PlaybackKFDemoAction(object):
             plan_obj = data_store[self.PLAN_OBJ_KEY][i]
             plan_obj.plan = plans[i]
         
-        return data_store 
+        return (data_store, joint_flag)
 
     def _visualize_plan(self, data_store):
 
@@ -316,11 +331,16 @@ class PlaybackKFDemoAction(object):
             # Pull out the plan segments
             plan_segments = data_store[self.PLAN_OBJ_KEY]
 
-            # TODO: Check for error during playback 
+            # Execute each plan segment
             for plan_obj in plan_segments:
-                result = self._send_plan(plan_obj.plan)
+                result = self._send_plan(plan_obj.plan, plan_obj.keyframe_num)
                 self._execute_gripper(plan_obj)
-                print result
+               
+                # Check if the result was successful (error code = 0)
+                if result.error_code != 0:
+                    error_msg = "Trajectory playback unsuccessful for segment: %d" % plan_obj.keyframe_num
+                    rospy.logerr(error_msg)
+                    return
 
             # Finished
             return self._merge_plans(data_store['full_plan'])
@@ -344,7 +364,7 @@ class PlaybackKFDemoAction(object):
             return self.manipulator.arm.smooth_joint_trajectory_client.get_result()
 
     def _execute_gripper(self, stored_obj):
-        pos = stored_obj.gripper_val[0].position
+        pos = stored_obj.gripper_val[0]
         if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:
             self.gripper.set_pos(pos)
             rospy.sleep(self.GRIPPER_SLEEP_TIME) # Let gripper open/close
@@ -358,7 +378,7 @@ class PlaybackKFDemoAction(object):
                path_name - location to and the filename of data
         '''
 
-        cPickle.dump(data, open(path_name, "w"), cPickle.HIGHEST_PROTOCOL)
+        cPickle.dump(data, open(path_name, "wb"), cPickle.HIGHEST_PROTOCOL)
 
     def _load_pkl(self, path_name):
         '''
@@ -370,7 +390,7 @@ class PlaybackKFDemoAction(object):
         '''
 
         # Load pickle file
-        with open(path_name, "r") as file_path:
+        with open(path_name, "rb") as file_path:
            loaded_file = cPickle.load(file_path)
 
         return loaded_file

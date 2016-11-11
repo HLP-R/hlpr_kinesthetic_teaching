@@ -43,7 +43,7 @@ class PlaybackPlanObject():
         self.plan = None
         self.target = None
         self.gripper_val = None
-        self.keyframe_num = None
+        self.keyframe_num = -1
         self.time_stamp = None
         self.joint_flag = None # True - it is joint space, False = EEF space 
 
