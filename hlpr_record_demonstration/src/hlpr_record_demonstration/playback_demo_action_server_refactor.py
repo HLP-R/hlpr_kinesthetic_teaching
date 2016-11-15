@@ -37,6 +37,7 @@ import os
 import rosbag
 import rospy
 import yaml
+import numpy as np
 
 from collections import defaultdict
 from hlpr_record_demonstration.playback_plan_object import PlaybackPlanObject
@@ -68,12 +69,17 @@ class PlaybackKFDemoAction(object):
 
         # Load some thresholds
         self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 30)
+        self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.1) # total distance all joints have to move at minimum
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
         self._pre_plan = rospy.get_param('~pre_plan', False)
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
+        self.joint_state_topic = rospy.get_param('~joint_state_topic', '/joint_states')
 
         # Subscribe to the current gripper status
         rospy.Subscriber(self.gripper_status_topic, GripperStat, self._gripper_update, queue_size=1)
+
+        # Subscribe to the current joint states
+        rospy.Subscriber(self.joint_state_topic, JointState, self._joint_state_update, queue_size=1)
        
         # Setup some gripper values during playback
         self.GRIPPER_THRESHOLD = 0.01 # 1cm threshold for moving
@@ -93,8 +99,14 @@ class PlaybackKFDemoAction(object):
         # Setup the internal result 
         self.result = PlaybackKeyframeDemoResult()
 
+        # Store the current joint states
+        self.current_joint_state = dict()
+
     def _gripper_update(self, msg):
         self.gripper_pos = msg.position
+
+    def _joint_state_update(self, msg):
+        self.current_joint_state = self._get_arm_joint_values(msg)
 
     # Main function that is called everytime playback is called
     def do_playback_keyframe_demo(self, goal):
@@ -248,8 +260,13 @@ class PlaybackKFDemoAction(object):
                 plan_obj.set_gripper_val((gripper_val,msg_store[gripper_topic][i][1]))
            
             data_store[self.PLAN_OBJ_KEY].append(plan_obj) 
-       
-        plans = self.arm_planner.plan_targetInputWaypoint([x.target for x in data_store[self.PLAN_OBJ_KEY]], joint_flag, merged=False)
+ 
+        # Filter the plan objects and remove objects with targets too close to the same position
+        data_store[self.PLAN_OBJ_KEY] = self._check_keyframes(data_store[self.PLAN_OBJ_KEY], joint_flag)
+        total_keyframes = len(data_store[self.PLAN_OBJ_KEY])
+
+        # Actually get the plans from the moveit API
+        plans = self.arm_planner.plan_targetInputWaypoint([x.target for x in data_store[self.PLAN_OBJ_KEY]], joint_flag, merged=False, current_joints = self.current_joint_state)
 
         # Check if we were able to create valid plan segments
         if plans is None:
@@ -266,10 +283,52 @@ class PlaybackKFDemoAction(object):
         
         return (data_store, joint_flag)
 
+    def _check_keyframes(self, plan_objects, joint_flag):
+        # Need to check if the target is similar to last AND
+        # check the state of the gripper. If the gripper has changed
+        # merge with the previous keyframe
+
+        prev_obj = None
+        discard_list = []
+        for i in xrange(len(plan_objects)):
+            plan_obj = plan_objects[i]
+            if prev_obj is None:
+                prev_obj = plan_obj
+                continue
+
+            total_difference = 0.0
+            if joint_flag:
+                for joint in plan_obj.target:
+                    total_difference += abs(plan_obj.target[joint]-prev_obj.target[joint])
+
+                # Check if the difference is too small - discard if so
+                if total_difference < self.JOINT_THRESHOLD:
+                    discard_list.append(i)
+
+                    # Check if the gripper needs to be appended to the prior frame
+                    if abs(plan_obj.gripper_val[0] - prev_obj.gripper_val[0]) > self.GRIPPER_THRESHOLD:
+                        plan_objects[i-1].gripper_val = prev_obj.gripper_val
+
+            else:
+                pass # For now - do EEF checks
+
+            prev_obj = plan_obj
+
+        filtered_plan_objects = []
+        for i in xrange(len(plan_objects)):
+            if i not in discard_list:
+                filtered_plan_objects.append(plan_objects[i])
+            else:
+                rospy.logwarn('Skipped keyframe: %d' %i)
+
+        return filtered_plan_objects
+
+
     def _visualize_plan(self, data_store):
 
         # Pull out the plan from the data
-        plan = self._merge_plans(data_store['full_plan'])
+        full_plan = [x.plan for x in data_store[self.PLAN_OBJ_KEY]]
+        plan = self._merge_plans(full_plan)
         display_trajectory = DisplayTrajectory()
         display_trajectory.trajectory_start = self.arm_planner.robot.get_current_state()
         display_trajectory.trajectory.append(plan)
@@ -324,7 +383,6 @@ class PlaybackKFDemoAction(object):
 
         return joint_values
 
-
     def _execute_plan(self, data_store):
 
         while not self.server.is_preempt_requested():
@@ -336,7 +394,7 @@ class PlaybackKFDemoAction(object):
             for plan_obj in plan_segments:
                 result = self._send_plan(plan_obj.plan, plan_obj.keyframe_num)
                 self._execute_gripper(plan_obj)
-               
+
                 # Check if the result was successful (error code = 0)
                 if result.error_code != 0:
                     error_msg = "Trajectory playback unsuccessful for segment: %d" % plan_obj.keyframe_num
