@@ -50,8 +50,6 @@ from hlpr_speech_msgs.msg import StampedString
 from hlpr_speech_msgs.srv import SpeechService
 from hlpr_speech_synthesis import speech_synthesizer
 from hlpr_kinesthetic_interaction.srv import KinestheticInteract
-from hlpr_manipulation_utils.manipulator import Gripper
-from wpi_jaco_msgs.srv import GravComp
 
 class KinestheticInteraction:
 
@@ -59,8 +57,6 @@ class KinestheticInteraction:
     # TODO: REMOVE THIS AND PUT SOMEONE GLOBAL?
     RIGHT = 0
     LEFT = 1
-    
-    GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp"
 
     def __init__(self, verbose = True):
 
@@ -86,20 +82,16 @@ class KinestheticInteraction:
         # Set flag for whether we're in kinesthetic mode
         self.active = False # Default is false
 
-	# Set flag for whether to speak responses
-	self.verbose = verbose
+        # Set flag for whether to speak responses
+        self.verbose = verbose
     
         # Create a service for kinesthetic mode
         self.k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
-        # Get access to the gravity compensation service
-        rospy.logwarn("Waiting for gravity compensation service")
-        rospy.wait_for_service(KinestheticInteraction.GRAVITY_COMP_SERVICE)
-        self.gravity_comp = rospy.ServiceProxy(KinestheticInteraction.GRAVITY_COMP_SERVICE, GravComp)
-        rospy.logwarn("Gravity compenstation service loaded")
-
-        # Initialize the gripper
-        self.gripper = Gripper()
+        # Get access to the gravity compensation service and gripper
+        # WARN: You MUST have set the arm_class variable in the class that
+        # extends this
+        self.arm = self.arm_class()
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
@@ -146,9 +138,7 @@ class KinestheticInteraction:
             func()
 
         else:
-            rospy.logwarn("Kinesthetic Mode is inactive currently. Command: %s ignored" % self.last_command)
-	    if self.verbose:
-              self.speech.say("Kinesthetic Mode is inactive")
+            rospy.logwarn("Kinesthetic Mode is inactive currently")
 
     def _command_not_found(self):
         rospy.logwarn("Speech command unknown: %s" % self.last_command)
@@ -170,11 +160,15 @@ class KinestheticInteraction:
         print "I heard ya!"
         
     def _open_hand(self):
-        self.gripper.open()
+        self.arm.gripper.open()
+	if self.verbose:
+	    self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _close_hand(self):
-        self.gripper.close()
+        self.arm.gripper.close()
+	if self.verbose:
+	    self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _open_hand_left(self):
@@ -184,7 +178,7 @@ class KinestheticInteraction:
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
 
     def _start_gc(self):
-        response = self.gravity_comp(True)
+        response = self.arm.gravity_comp(True)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
 	    if self.verbose:
@@ -193,7 +187,7 @@ class KinestheticInteraction:
             rospy.logerr("Gravity compensation is not active.")
 
     def _end_gc(self):
-        response = self.gravity_comp(False)
+        response = self.arm.gravity_comp(False)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
 	    if self.verbose:

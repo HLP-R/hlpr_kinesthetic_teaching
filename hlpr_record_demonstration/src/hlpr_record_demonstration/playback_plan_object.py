@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
 
 # Copyright (c) 2016, Diligent Droids
 # All rights reserved.
@@ -28,47 +28,40 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Author: Andrea Thomaz, athomaz@diligentdroids.com
+# Author: Vivian Chu, vchu@diligentdroids.com
 
-import rospy
-import tf 
-import time
-from geometry_msgs.msg import Pose, Point, Quaternion
-from sensor_msgs.msg import JointState
+''' playback_plan_object.py
+Simple object that stores converted bag keyframes into 
+plans and segments
+'''
 
+class PlaybackPlanObject():
 
-def eef_pose_pub():
-  rospy.init_node('eef_publisher')
-  rospy.loginfo("Publishing right EEF gripper location")
-  listener = tf.TransformListener()
-  pub = rospy.Publisher('eef_pose', Pose, queue_size=10)
+    def __init__(self):
 
-  DEFAULT_LINK = '/right_ee_link'
-  DEFAULT_RATE = 100
+        # Create two variables - one for arm plan positions, one for gripper positions
+        self.plan = None
+        self.target = None
+        self.gripper_val = None
+        self.keyframe_num = -1
+        self.time_stamp = None
+        self.joint_flag = None # True - it is joint space, False = EEF space 
 
-  # Pull from param server the hz and EEF link
-  eef_link = rospy.get_param("~eef_link", DEFAULT_LINK)
-  publish_rate = rospy.get_param("~eef_rate", DEFAULT_RATE)
+    def set_plan(self, plan):
+        self.plan = plan
 
-  rate = rospy.Rate(publish_rate)
-  while not rospy.is_shutdown():
-    try: 
-      trans, rot = listener.lookupTransform('/base_link', eef_link, rospy.Time(0))
-    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-      continue
-    msg = Pose()
-    msg.position = Point()
-    msg.position.x, msg.position.y, msg.position.z = trans[0], trans[1], trans[2]
-    msg.orientation = Quaternion() 
-    msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w = rot[0], rot[1], rot[2], rot[3]
-    pub.publish(msg)
-    rate.sleep()
+    def set_gripper_val(self, val):
+        self.gripper_val = val
 
-if __name__ =='__main__':
-  try:
-    eef_pose_pub()
-  except rospy.ROSInterruptException:
-    pass
+    def set_target_val(self, val):
+        self.target = val
 
+    def set_target_time(self, t):
+        self.time_stamp = t
 
+    def set_keyframe(self, val):
+        self.keyframe_num = val
+
+    def set_joint_flag(self, val):
+        self.joint_flag = val
 
