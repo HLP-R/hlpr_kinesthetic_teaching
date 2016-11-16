@@ -156,8 +156,8 @@ class KinestheticInteraction:
 
     def _hear_check(self):
 	if self.verbose:
-          self.speech.say("I heard ya!")
-        print "I heard ya!"
+          self.speech.say("I heard you!")
+        print "I heard you!"
         
     def _open_hand(self):
         self.arm.gripper.open()
