@@ -307,7 +307,7 @@ class PlaybackKFDemoAction(object):
 
                     # Check if the gripper needs to be appended to the prior frame
                     if abs(plan_obj.gripper_val[0] - prev_obj.gripper_val[0]) > self.GRIPPER_THRESHOLD:
-                        plan_objects[i-1].gripper_val = prev_obj.gripper_val
+                        plan_objects[i-1].gripper_val = plan_obj.gripper_val
 
             else:
                 pass # For now - do EEF checks
