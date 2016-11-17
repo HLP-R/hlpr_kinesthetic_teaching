@@ -49,6 +49,8 @@ from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 from vector_msgs.msg import GripperStat
 from sensor_msgs.msg import JointState
 from control_msgs.msg import FollowJointTrajectoryGoal
+from std_msgs.msg import Bool
+from data_logger_bag.msg import LogControl
 
 class PlaybackKFDemoAction(object):
 
@@ -72,6 +74,8 @@ class PlaybackKFDemoAction(object):
         self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.1) # total distance all joints have to move at minimum
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
         self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.06)
+        self.logger_topic = rospy.get_param("~logger_topic", 'data_logger_flag')
+        self.logger_control_topic = rospy.get_param("~logger_conrol_msg_topic", 'C6_Task_Description')
 
         self._pre_plan = rospy.get_param('~pre_plan', False)
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
@@ -94,6 +98,10 @@ class PlaybackKFDemoAction(object):
         self.display_trajectory_publisher = rospy.Publisher(
                                         '/move_group/display_planned_path',
                                         DisplayTrajectory, queue_size=1)
+
+        # Setup publisher for data logginer
+        self.data_log_pub = rospy.Publisher(self.logger_topic, Bool, queue_size=5)
+        self.log_control_pub = rospy.Publisher(self.logger_control_topic, LogControl, queue_size=5)
 
         # Store the playback file
         self.playback_file = None
@@ -124,11 +132,19 @@ class PlaybackKFDemoAction(object):
             self.server.set_aborted(self.result, error_msg)
             rospy.logerr(error_msg)
             return 
+
+        # Setup data logging
+        log_control_msg = LogControl()
+        log_control_msg.runName = os.path.split(os.path.splitext(self.playback_file)[0])[-1]
+        log_control_msg.playback = True
+        self.log_control_pub.publish(log_control_msg)
     
         # Check what kind of file we've received (bag vs. pkl)
         if filename.endswith('.bag'):
             # Process the bag file
             (self.data_store, joint_flag) = self._process_bag(filename, goal.target_topic)
+            if self.data_store is None:
+                return
     
             # Save the created plan in a pkl file in the same directory
             if joint_flag:
@@ -151,13 +167,14 @@ class PlaybackKFDemoAction(object):
 
         elif filename.endswith('.pkl'):
             self.data_store = self._load_pkl(filename)
-     
+
         # Check if we're playing the file
         if goal.vis_only:
             plan = self._visualize_plan(self.data_store) 
             complete_msg = "Visualized plan successfully"
         else:
             plan = self._execute_plan(self.data_store)
+            self.data_log_pub.publish(False)
             complete_msg = "Executed plan successfully"
 
         # Return success if we've gotten to this point
@@ -388,6 +405,9 @@ class PlaybackKFDemoAction(object):
     def _execute_plan(self, data_store):
 
         while not self.server.is_preempt_requested():
+
+            # Start recording
+            self.data_log_pub.publish(True)
 
             # Pull out the plan segments
             plan_segments = data_store[self.PLAN_OBJ_KEY]
