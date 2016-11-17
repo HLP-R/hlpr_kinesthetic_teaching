@@ -68,9 +68,11 @@ class PlaybackKFDemoAction(object):
         self.gripper = Gripper(prefix='right')
 
         # Load some thresholds
-        self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 30)
+        self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 50)
         self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.1) # total distance all joints have to move at minimum
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
+        self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.06)
+
         self._pre_plan = rospy.get_param('~pre_plan', False)
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
         self.joint_state_topic = rospy.get_param('~joint_state_topic', '/joint_states')
@@ -413,7 +415,7 @@ class PlaybackKFDemoAction(object):
     def _send_plan(self, plan, keyframe_count=-1):
         # Check if we have a valid plan
         if plan == None or len(plan.joint_trajectory.points) < 1:
-            print "Error: no plan found"
+            rospy.logerror("No plan found")
         else:
             rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
             traj_goal = FollowJointTrajectoryGoal()
@@ -426,7 +428,14 @@ class PlaybackKFDemoAction(object):
         if stored_obj.gripper_val is not None:
             pos = stored_obj.gripper_val[0]
             if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:
-                self.gripper.set_pos(pos)
+                # Check if gripper position is open or closed
+                if pos < self.GRIPPER_OPEN_THRESH:
+                    self.gripper.close()
+                else:
+                    self.gripper.open()
+
+                # Comment this in if we want to go to the actual gripper taught position
+                #self.gripper.set_pos(pos)
                 rospy.sleep(self.GRIPPER_SLEEP_TIME) # Let gripper open/close
 
 
