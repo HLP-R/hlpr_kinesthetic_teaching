@@ -75,7 +75,7 @@ class PlaybackKFDemoAction(object):
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
         self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.06)
         self.logger_topic = rospy.get_param("~logger_topic", 'data_logger_flag')
-        self.logger_control_topic = rospy.get_param("~logger_conrol_msg_topic", 'C6_Task_Description')
+        self.logger_control_topic = rospy.get_param("~logger_control_msg_topic", 'C6_Task_Description')
 
         self._pre_plan = rospy.get_param('~pre_plan', False)
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
