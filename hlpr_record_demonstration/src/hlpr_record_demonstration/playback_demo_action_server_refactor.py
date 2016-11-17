@@ -132,6 +132,12 @@ class PlaybackKFDemoAction(object):
             self.server.set_aborted(self.result, error_msg)
             rospy.logerr(error_msg)
             return 
+
+        # Setup data logging
+        log_control_msg = LogControl()
+        log_control_msg.runName = os.path.split(os.path.splitext(self.playback_file)[0])[-1]
+        log_control_msg.playback = True
+        self.log_control_pub.publish(log_control_msg)
     
         # Check what kind of file we've received (bag vs. pkl)
         if filename.endswith('.bag'):
@@ -162,19 +168,13 @@ class PlaybackKFDemoAction(object):
         elif filename.endswith('.pkl'):
             self.data_store = self._load_pkl(filename)
 
-        # Setup data logging
-        log_control_msg = LogControl()
-        log_control_msg.actionType = os.path.split(os.path.splitext(self.playback_file)[0])[-1]
-        log_control_msg.playback = True
-        self.log_control_pub.publish(log_control_msg)
-   
         # Check if we're playing the file
         if goal.vis_only:
             plan = self._visualize_plan(self.data_store) 
             complete_msg = "Visualized plan successfully"
         else:
             plan = self._execute_plan(self.data_store)
-            #self.data_log_pub.publish(False)
+            self.data_log_pub.publish(False)
             complete_msg = "Executed plan successfully"
 
         # Return success if we've gotten to this point
@@ -407,7 +407,7 @@ class PlaybackKFDemoAction(object):
         while not self.server.is_preempt_requested():
 
             # Start recording
-            #self.data_log_pub.publish(True)
+            self.data_log_pub.publish(True)
 
             # Pull out the plan segments
             plan_segments = data_store[self.PLAN_OBJ_KEY]
