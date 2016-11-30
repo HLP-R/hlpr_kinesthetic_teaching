@@ -39,12 +39,10 @@ import yaml
 import time
 import rosbag
 import string
+import importlib
 
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction, RecordKeyframeDemoGoal, RecordKeyframeDemoResult, RecordKeyframeDemoFeedback
-from vector_msgs.msg import GripperStat
 from std_msgs.msg import Int32, String
-from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Pose
 
 # RecordKFDemoAction:
 #  this is an action server that will record a single keyframe demo each time it is initiated.  
@@ -94,8 +92,21 @@ class RecordKFDemoAction(object):
 
     # Setup listeners for all of the topics we want to record
     for topic in self.data_types.keys():
-      # Cycle through each topic and add each callback programatically
-      listener = rospy.Subscriber(topic, eval(self.data_types[topic]), self.listener_cb, callback_args=topic, queue_size=10)
+
+      # Split the message type from the message package
+      msg_type = self.data_types[topic]
+      msg_arr = msg_type.split('/')
+      msg_pkg = msg_arr[0] + '.msg'
+
+      # Import the message type
+      msg_mod = importlib.import_module(msg_pkg)
+
+      try:
+        # Cycle through each topic and add each callback programatically
+        listener = rospy.Subscriber(topic, eval('msg_mod.'+msg_arr[1]), self.listener_cb, callback_args=topic, queue_size=10)
+
+      except:
+        rospy.logwarn("Messages of type: %s could not be loaded and will not be recorded" % msg_type)
 
     # Start the action server
     self.server.start()
