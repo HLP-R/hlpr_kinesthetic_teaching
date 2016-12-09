@@ -176,9 +176,8 @@ class Demonstration():
 
     """Simple function that makes sure the data directory specified exists"""
     def _ensure_dir(self, f): 
-        d = os.path.dirname(f)
-        if not os.path.exists(d):
-            os.makedirs(d)
+        if not os.path.exists(f):
+            os.makedirs(f)
 
     def _feedback_cb(self, feedback):
         #print('[Feedback] num keyframes: %f'%feedback.num_keyframes)
