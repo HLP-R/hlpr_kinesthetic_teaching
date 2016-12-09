@@ -1,8 +1,9 @@
+# NOTE: The msg_type has to be in this exact format. Any extra slashes will be misinterpreted
 topic: joint_states
-msg_type: JointState
+msg_type: sensor_msgs/JointState
 ---
 topic: eef_pose
-msg_type: Pose
+msg_type: geometry_msgs/Pose
 ---
 topic: /vector/right_gripper/stat
-msg_type: GripperStat
+msg_type: vector_msgs/GripperStat
