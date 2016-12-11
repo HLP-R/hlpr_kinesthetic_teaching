@@ -150,25 +150,25 @@ class KinestheticInteraction:
     # Extend this class and the functions in the next section 
 
     def _greeting(self):
-	if self.verbose:
-          self.speech.say("Hello!")
+        if self.verbose:
+            self.speech.say("Hello!")
         print "Hello!"
 
     def _hear_check(self):
-	if self.verbose:
-          self.speech.say("I heard you!")
+        if self.verbose:
+            self.speech.say("I heard you!")
         print "I heard you!"
         
     def _open_hand(self):
         self.arm.gripper.open()
-	if self.verbose:
-	    self.speech.say("OK")
+        if self.verbose:
+            self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _close_hand(self):
         self.arm.gripper.close()
-	if self.verbose:
-	    self.speech.say("OK")
+        if self.verbose:
+            self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _open_hand_left(self):
@@ -181,8 +181,8 @@ class KinestheticInteraction:
         response = self.arm.gravity_comp(True)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
-	    if self.verbose:
-              self.speech.say("OK")
+            if self.verbose:
+                self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is not active.")
 
@@ -190,8 +190,8 @@ class KinestheticInteraction:
         response = self.arm.gravity_comp(False)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
-	    if self.verbose:
-              self.speech.say("OK")
+            if self.verbose:
+                self.speech.say("OK")
         else:
             rospy.logerr("Gravity compensation is still active.")
 
