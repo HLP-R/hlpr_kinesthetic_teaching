@@ -51,7 +51,7 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     ERROR_START = "Did not start"
     ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?" 
 
-    def __init__(self, spin=True, node_name=None, arm_class=Arm):
+    def __init__(self, spin=True, node_name=None, arm_class=Arm, verbose=True):
 
         if(node_name):
             self.node_name = node_name
@@ -64,7 +64,7 @@ class BasicKinestheticInteraction(KinestheticInteraction):
         # Initialize the arm
         self.arm_class = arm_class
 
-        super(BasicKinestheticInteraction, self).__init__()
+        super(BasicKinestheticInteraction, self).__init__(verbose=verbose)
 
         # Initialize demonstration
         self.demo = None
