@@ -141,7 +141,8 @@ class KinestheticInteraction:
             rospy.logwarn("Kinesthetic Mode is inactive currently")
 
     def _command_not_found(self):
-        rospy.logwarn("Speech command unknown: %s" % self.last_command)
+        if self.verbose:
+            rospy.logwarn("Speech command unknown: %s" % self.last_command)
 
     def add_speech_commands(self, speech_cmd, func):
         self.switcher[speech_cmd] = func
