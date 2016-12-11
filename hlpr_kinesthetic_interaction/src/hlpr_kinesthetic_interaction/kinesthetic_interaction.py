@@ -97,6 +97,9 @@ class KinestheticInteraction:
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
         rospy.Subscriber(self.sub_topic, self._msg_type, self._speechCB, queue_size=1) 
 
+        # Commands used in this base class
+        self.k_mode_commands = ["open_hand", "close_hand", "start_gc", "end_gc", "keyframe_start", "keyframe", "keyframe_end"]
+
         rospy.loginfo("Finished initializing Kinesthetic Interaction node. Service is currently set to: "+str(self.active))
 
     def _init_speech_dictionary(self):
@@ -107,13 +110,15 @@ class KinestheticInteraction:
         # Cycle through all of the possible speech commands
         # NOTE: This assumes that there exist a function with the syntax
         # self._speech_command. Otherwise, the command is ignored
+        skip_commands = []
         for command in self.keywords.keys():
 
             cmd_function = "_"+command.lower()
             if cmd_function in dir(self):
                 self.switcher[command] = eval("self."+cmd_function)
             else:
-                rospy.loginfo("No function for command: %s", command)
+                skip_commands.append(command)
+        rospy.loginfo("No function in kinesthetic teaching for commands: %s", ', '.join(skip_commands))
 
     def toggleKMode(self, req):
         self.active = req.enableKInteract # pull out what the request sent
@@ -122,15 +127,15 @@ class KinestheticInteraction:
 
     def _speechCB(self, msg):
 
-        if self.active:
-            # Pull the speech command
-            try:
-            	response = self.speech_service(True)
-            	self.last_command = response.speech_cmd
-            except rospy.ServiceException:
-            	rospy.logerr("No last speech command")
-            	self.last_command = None
+        # Pull the speech command
+        try:
+            response = self.speech_service(True)
+            self.last_command = response.speech_cmd
+        except rospy.ServiceException:
+            rospy.logerr("No last speech command")
+            self.last_command = None
 
+        if self.active:
             # Get the function from switcher dictionary
             func = self.switcher.get(self.last_command, self._command_not_found)         
        
@@ -138,7 +143,8 @@ class KinestheticInteraction:
             func()
 
         else:
-            rospy.logwarn("Kinesthetic Mode is inactive currently")
+            if self.last_command.lower() in self.k_mode_commands:
+                rospy.logwarn("Kinesthetic Mode is inactive currently")
 
     def _command_not_found(self):
         if self.verbose:
@@ -149,16 +155,6 @@ class KinestheticInteraction:
 
     # These are the commands that are set in advance and correspond to actual robot state changes
     # Extend this class and the functions in the next section 
-
-    def _greeting(self):
-        if self.verbose:
-            self.speech.say("Hello!")
-        print "Hello!"
-
-    def _hear_check(self):
-        if self.verbose:
-            self.speech.say("I heard you!")
-        print "I heard you!"
         
     def _open_hand(self):
         self.arm.gripper.open()
