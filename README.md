@@ -1,4 +1,4 @@
-# hlpr_kinesthetic_teaching
+# hlpr_kinesthetic_teaching [![Build Status](https://api.travis-ci.org/HLP-R/hlpr_kinesthetic_teaching.png)](https://travis-ci.org/HLP-R/hlpr_kinesthetic_teaching)
 
 This metapackage contains all the packages related to kinesthetic teaching for the HLP-R platform
 
