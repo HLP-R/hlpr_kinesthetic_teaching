@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Location for your data storage. NOTE: path will be created for you -->
+    <arg name="data_folder_loc" default="~/"/>
+    <!-- Folder name for data storage. NOTE: path will be created for you -->
+    <arg name="data_folder_name" default="data"/>
+    <!-- prefix before filenames to append -->
+    <arg name="data_prefix" default="demo"/>
+
+    <!-- Start the basic kinesthetic interaction server -->
+    <node name="basic_kinesthetic_interact" pkg="hlpr_kinesthetic_interaction" type="basic_kinesthetic_interaction.py" respawn="false" output="screen" >
+        <param name="data_folder_loc" value="$(arg data_folder_loc)" type="string"/>
+        <param name="data_folder_name" value="$(arg data_folder_name)" type="string"/>
+        <param name="data_prefix" value="$(arg data_prefix)" type="string"/>
+    </node>
+
+</launch>
