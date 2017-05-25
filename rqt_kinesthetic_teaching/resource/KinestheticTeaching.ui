@@ -17,32 +17,96 @@
    <item>
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <layout class="QGridLayout" name="gridLayout">
-       <item row="1" column="1">
-        <widget class="QPushButton" name="demoLocationButton">
-         <property name="text">
-          <string> Browse</string>
-         </property>
-         <property name="icon">
-          <iconset theme="document-open"/>
-         </property>
-        </widget>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLabel" name="demoLocationLabel">
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Demo Location</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item alignment="Qt::AlignRight">
+          <widget class="QCheckBox" name="shouldTimestamp">
+           <property name="text">
+            <string>Add timestamp to new saves</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="demoLocationLabel">
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>20</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Demo Location</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLineEdit" name="demoLocation"/>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QLineEdit" name="demoLocation"/>
+         </item>
+         <item>
+          <widget class="QPushButton" name="demoLocationSaveButton">
+           <property name="minimumSize">
+            <size>
+             <width>80</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>125</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string> Save</string>
+           </property>
+           <property name="icon">
+            <iconset theme="document-save-as">
+             <normaloff>.</normaloff>.</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="demoLocationButton">
+           <property name="minimumSize">
+            <size>
+             <width>80</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>125</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string> Open</string>
+           </property>
+           <property name="icon">
+            <iconset theme="document-open">
+             <normaloff>.</normaloff>.</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>
@@ -59,6 +123,9 @@
         <widget class="QLineEdit" name="demoName">
          <property name="enabled">
           <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>No demo loaded</string>
          </property>
         </widget>
        </item>
@@ -89,7 +156,8 @@
           <string> Play</string>
          </property>
          <property name="icon">
-          <iconset theme="media-playback-start"/>
+          <iconset theme="media-playback-start">
+           <normaloff>.</normaloff>.</iconset>
          </property>
          <property name="flat">
           <bool>false</bool>
@@ -122,8 +190,24 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="startTrajectoryButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Start a trajectory demonstration</string>
+       </property>
+       <property name="text">
+        <string>Start trajectory</string>
+       </property>
+      </widget>
+     </item>
      <item alignment="Qt::AlignRight">
       <widget class="QPushButton" name="startButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="minimumSize">
         <size>
          <width>125</width>
@@ -136,13 +220,19 @@
          <height>16777215</height>
         </size>
        </property>
+       <property name="toolTip">
+        <string>Start a keyframe demonstration</string>
+       </property>
        <property name="text">
-        <string>Start</string>
+        <string>Start keyframe</string>
        </property>
       </widget>
      </item>
      <item alignment="Qt::AlignRight">
       <widget class="QPushButton" name="addButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="minimumSize">
         <size>
          <width>125</width>
@@ -154,6 +244,9 @@
          <width>150</width>
          <height>16777215</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>Write a keyframe</string>
        </property>
        <property name="text">
         <string>Add keyframe</string>
@@ -162,6 +255,9 @@
      </item>
      <item alignment="Qt::AlignRight">
       <widget class="QPushButton" name="endButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="minimumSize">
         <size>
          <width>125</width>
@@ -173,6 +269,9 @@
          <width>150</width>
          <height>16777215</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>End a demonstration (keyframe or trajectory)</string>
        </property>
        <property name="text">
         <string>End</string>
