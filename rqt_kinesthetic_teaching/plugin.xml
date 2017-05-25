@@ -1,0 +1,20 @@
+<library path="src">
+    <class name="HLP-R Kinesthetic Teaching" type="rqt_kinesthetic_teaching.rqt_kinesthetic_teaching.KinestheticTeaching" base_class_type="rqt_gui_py::Plugin">
+        <description>
+            TODO
+        </description>
+        <qtgui>
+            <!-- optional grouping...
+            <group>
+                <label>Group</label>
+            </group>
+            <group>
+                <label>Subgroup</label>
+            </group>
+            -->
+            <label>HLP-R Kinesthetic Teaching GUI</label>
+            <icon type="theme">applications-other</icon>
+            <statustip>HLP-R Kinesthetic Teaching GUI</statustip>
+        </qtgui>
+    </class>
+</library>
