@@ -1,6 +1,7 @@
 import os
 import rospy
 import rospkg
+import threading
 
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, qWarning, Signal
@@ -38,6 +39,23 @@ class KinestheticTeachingWidget(QWidget):
         self.addButton.clicked[bool].connect(self.addKeyframe)
         self.endButton.clicked[bool].connect(self.endKeyframe)
 
+        self.previousStatusText = None
+
+    def _showWarning(self, title, body):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle(title)
+        msg.setText(body)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+    def _showStatus(self, text):
+        self.status.setText(text)
+        self.previousStatusText = text
+        threading.Timer(2, self._expireStatus).start()
+    def _expireStatus(self):
+        if self.status.text() == self.previousStatusText:
+            self.status.setText("Ready.")
+
     def browseForLocation(self):
         location = QFileDialog.getOpenFileName()[0]
         if len(location) == 0:
@@ -55,7 +73,7 @@ class KinestheticTeachingWidget(QWidget):
         if len(location) == 0:
             return
 
-        print("Not implemented")
+        self._showStatus("Not implemented.")
     
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter = "*.bag;;*")[0]
@@ -69,7 +87,7 @@ class KinestheticTeachingWidget(QWidget):
 
         try:
             os.remove(location)
-            print("Deleted existing save file")
+            self._showStatus("Deleted existing save file.")
         except OSError:
             pass
 
@@ -81,25 +99,24 @@ class KinestheticTeachingWidget(QWidget):
         self.demoLocation.setText(self.demonstration.filename)
         self.demoName.setText(os.path.basename(self.demonstration.filename))
 
-    def _showWarning(self, title, body):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle(title)
-        msg.setText(body)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
     def startTrajectory(self):
         success = self.demonstration.start_trajectory()
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
+        else:
+            self._showStatus("Trajectory started.")
     def startKeyframe(self):
         success = self.demonstration.start_keyframe()
         if not success:
             self._showWarning("Could not start recording", "Failed to start keyframe recording. A recording is already in progress.")
+        else:
+            self._showStatus("Keyframe recording started.")
     def addKeyframe(self):
         success = self.demonstration.write_keyframe()
         if not success:
             self._showWarning("Could not record keyframe", "Failed to record keyframe. A recording is not currently in progress.")
+        else:
+            self._showStatus("Keyframe recorded.")
     def endKeyframe(self):
         success = self.demonstration.stop_recording()
         if not success:
@@ -108,3 +125,5 @@ class KinestheticTeachingWidget(QWidget):
             else:
                 text = "Failed to end recordning for an unknown reason. Check the logs for more information."
             self._showWarning("Could not end recording", text)
+        else:
+            self._showStatus("Recording saved.")
