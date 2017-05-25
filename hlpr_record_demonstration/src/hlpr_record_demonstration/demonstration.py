@@ -191,7 +191,7 @@ if __name__ == '__main__':
     rospy.loginfo("Initializing the demonstration node")
 
     demo = Demonstration()
-    demo._init_demo()
+    demo.init_demo()
 
 
 
