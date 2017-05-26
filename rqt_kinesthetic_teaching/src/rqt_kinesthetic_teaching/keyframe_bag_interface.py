@@ -23,6 +23,7 @@ class KeyframeBagInterface():
     
     def __init__(self):
         self.bag = None
+        self.client = None
 
     def parse(self, file):
         """
@@ -74,16 +75,19 @@ class KeyframeBagInterface():
                     parsed.append(data)
             return parsed
 
+    def playInit(self):
+        self.client = actionlib.SimpleActionClient("playback_keyframe_demo", PlaybackKeyframeDemoAction)
+        self.client.wait_for_server()
+
     def play(self, file, cb):
         """
         Plays the keyframes from a bag file
         Calls do_playback_keyframe_demo() in playback_demonstration_action_server.py
         """
+        if not self.client:
+            raise ParseException("Play not initialized")
         if not os.path.isfile(file):
             raise ParseException("File does not exist")
-        
-        client = actionlib.SimpleActionClient("playback_keyframe_demo", PlaybackKeyframeDemoAction)
-        client.wait_for_server()
 
         time.sleep(1.0)
 

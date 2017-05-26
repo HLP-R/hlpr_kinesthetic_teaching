@@ -2,6 +2,7 @@ import os
 import rosbag
 import rospy
 import rospkg
+import signal
 import time
 import threading
 
@@ -12,6 +13,9 @@ from python_qt_binding.QtGui import QFileDialog, QGraphicsView, QIcon, QWidget, 
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from hlpr_record_demonstration.demonstration import Demonstration
 from keyframe_bag_interface import ParseException, KeyframeBagInterface
+
+class TimeoutException(Exception):
+    pass
 
 class KinestheticTeachingWidget(QWidget):
     """
@@ -118,6 +122,10 @@ class KinestheticTeachingWidget(QWidget):
         self._showStatus("Parsed {} keyframe(s).".format(len(parsedData)))
         self.playDemoButton.setEnabled(True)
     
+    def _getDemonstrationHandler(self, signum, frame):
+        msg = "Could not load record keyframe demo server. Run `rosrun hlpr_record_demonstration record_demonstration_action_server.py`."
+        rospy.logerr(msg)
+        raise TimeoutException(msg)
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter = "*.bag;;*")[0]
         if len(location) == 0:
@@ -137,7 +145,14 @@ class KinestheticTeachingWidget(QWidget):
         # Initialize the demonstration recorder
         #rospy.init_node("demonstration_node", anonymous=False)
         #rospy.loginfo("Initializing the demonstration node")
-        self.demonstration = Demonstration()
+        signal.signal(signal.SIGALRM, self._getDemonstrationHandler)
+        signal.alarm(2)
+        try:
+            self.demonstration = Demonstration()
+        except TimeoutException as err:
+            self._showWarning("Record keyframe demo server unreachable", str(err))
+            return
+        signal.alarm(0)
         self.demonstration.init_demo(custom_name = os.path.basename(location), new_dir = os.path.dirname(location), timestamp = self.shouldTimestamp.isChecked())
         self.demoLocation.setText(self.demonstration.filename)
         self.demoName.setText(os.path.basename(self.demonstration.filename))
@@ -181,11 +196,25 @@ class KinestheticTeachingWidget(QWidget):
             self._showStatus("Recording saved.")
             self.loadLocation()
 
+    def _playDemoHandler(self, signum, frame):
+        msg = "Could not load playback keyframe demo server. Run `rosrun hlpr_record_demonstration playback_demonstration_action_server.py`."
+        rospy.logerr(msg)
+        raise TimeoutException(msg)
     def playDemo(self):
         location = self.demoLocation.text()
-        self._showStatus("Playing...")
-        KeyframeBagInterface().play(location, self.playDemoDone)
+        keyframeBagInterface = KeyframeBagInterface()
 
+        signal.signal(signal.SIGALRM, self._playDemoHandler)
+        signal.alarm(2)
+        try:
+            keyframeBagInterface.playInit()
+        except TimeoutException as err:
+            self._showWarning("Playback keyframe demo server unreachable", str(err))
+            return
+        signal.alarm(0)
+
+        self._showStatus("Playing...")
+        keyframeBagInterface().play(location, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
         pass
