@@ -1,19 +1,25 @@
 import os
+import rosbag
 import rospy
 import rospkg
+import time
 import threading
 
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, qWarning, Signal
-from python_qt_binding.QtGui import QFileDialog, QGraphicsView, QIcon, QWidget, QMessageBox
+from python_qt_binding.QtGui import QFileDialog, QGraphicsView, QIcon, QWidget, QMessageBox, QHeaderView, QTreeWidgetItem
 
+from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from hlpr_record_demonstration.demonstration import Demonstration
+from keyframe_bag_parser import ParseException, KeyframeBagParser
 
 class KinestheticTeachingWidget(QWidget):
     """
     Widget for use for kinesthetic teaching demos
     Handles all widget callbacks
     """
+
+    STATUS_DISPLAY_TIME = 3 # seconds
 
     def __init__(self, context):
         super(KinestheticTeachingWidget, self).__init__()
@@ -39,6 +45,11 @@ class KinestheticTeachingWidget(QWidget):
         self.addButton.clicked[bool].connect(self.addKeyframe)
         self.endButton.clicked[bool].connect(self.endKeyframe)
 
+        # Set sizing options for tree widget headers
+        self.playbackTree.header().setStretchLastSection(False)
+        self.playbackTree.header().setResizeMode(0, QHeaderView.Stretch)
+        self.playbackTree.header().setResizeMode(1, QHeaderView.ResizeToContents)
+
         self.previousStatusText = None
 
     def _showWarning(self, title, body):
@@ -51,7 +62,7 @@ class KinestheticTeachingWidget(QWidget):
     def _showStatus(self, text):
         self.status.setText(text)
         self.previousStatusText = text
-        threading.Timer(2, self._expireStatus).start()
+        threading.Timer(self.STATUS_DISPLAY_TIME, self._expireStatus).start()
     def _expireStatus(self):
         if self.status.text() == self.previousStatusText:
             self.status.setText("Ready.")
@@ -72,8 +83,35 @@ class KinestheticTeachingWidget(QWidget):
         location = self.demoLocation.text()
         if len(location) == 0:
             return
+        
+        try:
+            self._showStatus("Parsing...")
+            parsedData = KeyframeBagParser().parse(location)
+        except (rosbag.bag.ROSBagException, ParseException) as err:
+            self._showStatus(str(err))
+            rospy.logwarn("[%s] %s", location, str(err))
+            return
 
-        self._showStatus("Not implemented.")
+        items = []
+        for i, keyframe in enumerate(parsedData):
+            item = QTreeWidgetItem()
+            title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
+            item.setText(0, title)
+            # Add children
+            for topic, data in keyframe["data"].items():
+                topicItem = QTreeWidgetItem()
+                topicItem.setText(0, topic)
+                for attribute, value in data.items():
+                    attributeValueItem = QTreeWidgetItem()
+                    attributeValueItem.setText(0, attribute)
+                    attributeValueItem.setText(1, str(value))
+                    topicItem.addChild(attributeValueItem)
+                item.addChild(topicItem)
+            items.append(item)
+        self.playbackTree.insertTopLevelItems(1, items)
+
+        self.keyframeCount.setText("{} keyframe(s) loaded".format(len(parsedData)))
+        self._showStatus("Parsed {} keyframe(s).".format(len(parsedData)))
     
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter = "*.bag;;*")[0]
@@ -127,3 +165,4 @@ class KinestheticTeachingWidget(QWidget):
             self._showWarning("Could not end recording", text)
         else:
             self._showStatus("Recording saved.")
+            self.loadLocation()

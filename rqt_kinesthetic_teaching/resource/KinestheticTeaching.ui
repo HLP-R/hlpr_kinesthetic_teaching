@@ -140,20 +140,10 @@
      </item>
      <item>
       <layout class="QGridLayout" name="gridLayout_3">
-       <item row="0" column="0">
-        <widget class="QLabel" name="demoPlaybackLabel">
-         <property name="text">
-          <string>Demo Playback</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QTableView" name="playbackTable"/>
-       </item>
-       <item row="2" column="0">
+       <item row="4" column="0">
         <widget class="QPushButton" name="playDemoButton">
          <property name="text">
-          <string> Play</string>
+          <string> Play demo</string>
          </property>
          <property name="icon">
           <iconset theme="media-playback-start">
@@ -163,6 +153,61 @@
           <bool>false</bool>
          </property>
         </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QTreeWidget" name="playbackTree">
+         <column>
+          <property name="text">
+           <string>Keyframe</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Value</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string/>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="QLabel" name="demoPlaybackLabel">
+           <property name="text">
+            <string>Demo Playback</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QLabel" name="keyframeCount">
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>
