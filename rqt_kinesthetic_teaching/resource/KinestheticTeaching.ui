@@ -142,6 +142,9 @@
       <layout class="QGridLayout" name="gridLayout_3">
        <item row="4" column="0">
         <widget class="QPushButton" name="playDemoButton">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="text">
           <string> Play demo</string>
          </property>

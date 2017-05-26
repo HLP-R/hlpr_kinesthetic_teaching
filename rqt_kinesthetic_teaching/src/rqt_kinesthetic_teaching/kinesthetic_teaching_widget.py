@@ -11,7 +11,7 @@ from python_qt_binding.QtGui import QFileDialog, QGraphicsView, QIcon, QWidget, 
 
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from hlpr_record_demonstration.demonstration import Demonstration
-from keyframe_bag_parser import ParseException, KeyframeBagParser
+from keyframe_bag_interface import ParseException, KeyframeBagInterface
 
 class KinestheticTeachingWidget(QWidget):
     """
@@ -44,6 +44,7 @@ class KinestheticTeachingWidget(QWidget):
         self.startButton.clicked[bool].connect(self.startKeyframe)
         self.addButton.clicked[bool].connect(self.addKeyframe)
         self.endButton.clicked[bool].connect(self.endKeyframe)
+        self.playDemoButton.clicked[bool].connect(self.playDemo)
 
         # Set sizing options for tree widget headers
         self.playbackTree.header().setStretchLastSection(False)
@@ -88,7 +89,7 @@ class KinestheticTeachingWidget(QWidget):
             self.keyframeCount.setText("")
             self.playbackTree.clear()
             self._showStatus("Parsing...")
-            parsedData = KeyframeBagParser().parse(location)
+            parsedData = KeyframeBagInterface().parse(location)
         except (rosbag.bag.ROSBagException, ParseException) as err:
             self._showStatus(str(err))
             rospy.logwarn("[%s] %s", location, str(err))
@@ -115,6 +116,7 @@ class KinestheticTeachingWidget(QWidget):
         self.demoName.setText(os.path.basename(location))
         self.keyframeCount.setText("{} keyframe(s) loaded".format(len(parsedData)))
         self._showStatus("Parsed {} keyframe(s).".format(len(parsedData)))
+        self.playDemoButton.setEnabled(True)
     
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter = "*.bag;;*")[0]
@@ -178,3 +180,12 @@ class KinestheticTeachingWidget(QWidget):
         else:
             self._showStatus("Recording saved.")
             self.loadLocation()
+
+    def playDemo(self):
+        location = self.demoLocation.text()
+        self._showStatus("Playing...")
+        KeyframeBagInterface().play(location, self.playDemoDone)
+
+    def playDemoDone(self, feedback):
+        print(feedback)
+        pass
