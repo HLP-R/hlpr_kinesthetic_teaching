@@ -85,6 +85,8 @@ class KinestheticTeachingWidget(QWidget):
             return
         
         try:
+            self.keyframeCount.setText("")
+            self.playbackTree.clear()
             self._showStatus("Parsing...")
             parsedData = KeyframeBagParser().parse(location)
         except (rosbag.bag.ROSBagException, ParseException) as err:
@@ -110,6 +112,7 @@ class KinestheticTeachingWidget(QWidget):
             items.append(item)
         self.playbackTree.insertTopLevelItems(1, items)
 
+        self.demoName.setText(os.path.basename(location))
         self.keyframeCount.setText("{} keyframe(s) loaded".format(len(parsedData)))
         self._showStatus("Parsed {} keyframe(s).".format(len(parsedData)))
     
@@ -136,6 +139,8 @@ class KinestheticTeachingWidget(QWidget):
         self.demonstration.init_demo(custom_name = os.path.basename(location), new_dir = os.path.dirname(location), timestamp = self.shouldTimestamp.isChecked())
         self.demoLocation.setText(self.demonstration.filename)
         self.demoName.setText(os.path.basename(self.demonstration.filename))
+        self.keyframeCount.setText("")
+        self.playbackTree.clear()
 
     def startTrajectory(self):
         success = self.demonstration.start_trajectory()
