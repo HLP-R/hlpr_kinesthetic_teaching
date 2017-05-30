@@ -36,12 +36,14 @@ class KinestheticTeachingWidget(QWidget):
         context.add_widget(self)
 
         # Set icons for buttons because they don't persist frm Qt creator for some reason
-        self.demoLocationButton.setIcon(QIcon.fromTheme("document-open"))
         self.demoLocationSaveButton.setIcon(QIcon.fromTheme("document-save-as"))
+        self.demoLocationButton.setIcon(QIcon.fromTheme("document-open"))
+        self.demoFolderLocationButton.setIcon(QIcon.fromTheme("folder"))
         self.playDemoButton.setIcon(QIcon.fromTheme("media-playback-start"))
 
         # Attach event handlers
         self.demoLocationButton.clicked[bool].connect(self.browseForLocation)
+        self.demoFolderLocationButton.clicked[bool].connect(self.browseForFolder)
         self.demoLocationSaveButton.clicked[bool].connect(self.newLocation)
         self.demoLocation.returnPressed.connect(self.loadLocation)
         self.startTrajectoryButton.clicked[bool].connect(self.startTrajectory)
@@ -79,6 +81,13 @@ class KinestheticTeachingWidget(QWidget):
 
         self.demoLocation.setText(location)
         self.loadLocation()
+    def browseForFolder(self):
+        location = QFileDialog.getExistingDirectory()
+        if len(location) == 0:
+            return
+
+        self.demoLocation.setText(location)
+        self.loadLocation()
     def loadLocation(self):
         self.startTrajectoryButton.setEnabled(False)
         self.startButton.setEnabled(False)
@@ -86,40 +95,60 @@ class KinestheticTeachingWidget(QWidget):
         self.endButton.setEnabled(False)
 
         location = self.demoLocation.text()
-        if len(location) == 0:
+        if os.path.isdir(location):
+            locations = [os.path.join(location, f) for f in os.listdir(location) if os.path.isfile(os.path.join(location, f)) and f.split(".")[-1] == "bag"]
+        else:
+            locations = [location]
+
+        if len(locations) == 0 or len(locations[0]) == 0:
             return
         
-        try:
-            self.keyframeCount.setText("")
-            self.playbackTree.clear()
-            self._showStatus("Parsing...")
-            parsedData = KeyframeBagInterface().parse(location)
-        except (rosbag.bag.ROSBagException, ParseException) as err:
-            self._showStatus(str(err))
-            rospy.logwarn("[%s] %s", location, str(err))
-            return
+        self.keyframeCount.setText("")
+        self.playbackTree.clear()
+        self._showStatus("Parsing...")
+        
+        totalFrames = 0
+        for location in sorted(locations):
+            try:
+                parsedData = KeyframeBagInterface().parse(location)
+            except (rosbag.bag.ROSBagException, ParseException) as err:
+                self._showStatus(str(err))
+                rospy.logwarn("[%s] %s", location, str(err))
+                self.playbackTree.clear()
+                return
+            totalFrames += len(parsedData)
 
-        items = []
-        for i, keyframe in enumerate(parsedData):
-            item = QTreeWidgetItem()
-            title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
-            item.setText(0, title)
-            # Add children
-            for topic, data in keyframe["data"].items():
-                topicItem = QTreeWidgetItem()
-                topicItem.setText(0, topic)
-                for attribute, value in data.items():
-                    attributeValueItem = QTreeWidgetItem()
-                    attributeValueItem.setText(0, attribute)
-                    attributeValueItem.setText(1, str(value))
-                    topicItem.addChild(attributeValueItem)
-                item.addChild(topicItem)
-            items.append(item)
-        self.playbackTree.addTopLevelItems(items)
-
-        self.demoName.setText(os.path.basename(location))
-        self.keyframeCount.setText("{} keyframe(s) loaded".format(len(parsedData)))
-        self._showStatus("Parsed {} keyframe(s).".format(len(parsedData)))
+            items = []
+            for i, keyframe in enumerate(parsedData):
+                item = QTreeWidgetItem()
+                title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
+                item.setText(0, title)
+                # Add children
+                for topic, data in keyframe["data"].items():
+                    topicItem = QTreeWidgetItem()
+                    topicItem.setText(0, topic)
+                    for attribute, value in data.items():
+                        attributeValueItem = QTreeWidgetItem()
+                        attributeValueItem.setText(0, attribute)
+                        attributeValueItem.setText(1, str(value))
+                        topicItem.addChild(attributeValueItem)
+                    item.addChild(topicItem)
+                items.append(item)
+            if len(locations) == 1:
+                self.playbackTree.addTopLevelItems(items)
+            else:
+                item = QTreeWidgetItem()
+                item.setText(0, location)
+                item.addChildren(items)
+                self.playbackTree.addTopLevelItem(item)
+        
+        if len(locations) == 1:
+            self.demoName.setText(os.path.basename(locations[0]))
+            self.keyframeCount.setText("{} keyframe(s) loaded".format(totalFrames))
+        else:
+            self.demoName.setText(os.path.basename(self.demoLocation.text()) + os.path.sep)
+            self.keyframeCount.setText("{} keyframe(s) loaded from {} files".format(totalFrames, len(locations)))
+        self._showStatus("Parsed {} keyframe(s).".format(totalFrames))
         self.playDemoButton.setEnabled(True)
     
     def _getDemonstrationHandler(self, signum, frame):
