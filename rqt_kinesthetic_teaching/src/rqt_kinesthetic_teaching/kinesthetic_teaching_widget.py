@@ -73,7 +73,7 @@ class KinestheticTeachingWidget(QWidget):
             self.status.setText("Ready.")
 
     def browseForLocation(self):
-        location = QFileDialog.getOpenFileName()[0]
+        location = QFileDialog.getOpenFileName(filter = "*.bag;;*")[0]
         if len(location) == 0:
             return
 
