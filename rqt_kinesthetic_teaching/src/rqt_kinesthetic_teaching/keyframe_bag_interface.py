@@ -96,4 +96,4 @@ class KeyframeBagInterface():
         goal.eef_only = False
         goal.target_topic = "joint_states"
 
-        client.send_goal(goal, feedback_cb=cb)
+        self.client.send_goal(goal, feedback_cb=cb)

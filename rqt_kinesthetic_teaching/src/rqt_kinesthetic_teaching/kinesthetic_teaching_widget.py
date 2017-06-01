@@ -243,7 +243,6 @@ class KinestheticTeachingWidget(QWidget):
         signal.alarm(0)
 
         self._showStatus("Playing...")
-        keyframeBagInterface().play(location, self.playDemoDone)
+        keyframeBagInterface.play(location, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
-        pass
