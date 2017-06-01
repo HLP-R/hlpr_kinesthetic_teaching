@@ -242,7 +242,15 @@ class KinestheticTeachingWidget(QWidget):
             return
         signal.alarm(0)
 
+        if os.path.isdir(location):
+            selected = self.playbackTree.selectedItems()
+            if not selected or selected[0].parent():
+                self._showWarning("Not playable", "Please select a keyframe sequence to play.")
+                return
+            location = selected[0].text(0)
+
         self._showStatus("Playing...")
+        rospy.loginfo("Playing {}".format(location))
         keyframeBagInterface.play(location, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
