@@ -75,14 +75,14 @@ class KinestheticTeachingWidget(QWidget):
             self.status.setText("Ready.")
 
     def browseForLocation(self):
-        location = QFileDialog.getOpenFileName(filter = "*.bag;;*")[0]
+        location = QFileDialog.getOpenFileName(filter="*.bag;;*", directory=os.path.dirname(self.demoLocation.text()))[0]
         if len(location) == 0:
             return
 
         self.demoLocation.setText(location)
         self.loadLocation()
     def browseForFolder(self):
-        location = QFileDialog.getExistingDirectory()
+        location = QFileDialog.getExistingDirectory(directory=os.path.dirname(self.demoLocation.text()))
         if len(location) == 0:
             return
 
@@ -156,7 +156,7 @@ class KinestheticTeachingWidget(QWidget):
         rospy.logerr(msg)
         raise TimeoutException(msg)
     def newLocation(self):
-        location = QFileDialog.getSaveFileName(filter = "*.bag;;*")[0]
+        location = QFileDialog.getSaveFileName(filter="*.bag;;*", directory=os.path.dirname(self.demoLocation.text()))[0]
         if len(location) == 0:
             return
         self.demoLocation.setText(location)
