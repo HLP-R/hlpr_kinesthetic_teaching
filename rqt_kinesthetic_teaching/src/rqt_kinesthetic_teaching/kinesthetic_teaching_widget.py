@@ -188,30 +188,34 @@ class KinestheticTeachingWidget(QWidget):
         self.keyframeCount.setText("")
         self.playbackTree.clear()
 
+    def _keyframeRecorded(self):
+        item = QTreeWidgetItem()
+        title = "(#{}) ".format(self.playbackTree.topLevelItemCount()) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        item.setText(0, title)
+        self.playbackTree.addTopLevelItem(item)
+        self.playbackTree.scrollToItem(item)
+        self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
+
     def startTrajectory(self):
         success = self.demonstration.start_trajectory()
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
         else:
+            self._keyframeRecorded()
             self._showStatus("Trajectory started.")
     def startKeyframe(self):
         success = self.demonstration.start_keyframe()
         if not success:
             self._showWarning("Could not start recording", "Failed to start keyframe recording. A recording is already in progress.")
         else:
-            self.keyframeCount.setText("0 keyframe(s) recorded")
+            self._keyframeRecorded()
             self._showStatus("Keyframe recording started.")
     def addKeyframe(self):
         success = self.demonstration.write_keyframe()
         if not success:
             self._showWarning("Could not record keyframe", "Failed to record keyframe. A recording is not currently in progress.")
         else:
-            item = QTreeWidgetItem()
-            title = "(#{}) ".format(self.playbackTree.topLevelItemCount()) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-            item.setText(0, title)
-            self.playbackTree.addTopLevelItem(item)
-            self.playbackTree.scrollToItem(item)
-            self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
+            self._keyframeRecorded()
             self._showStatus("Keyframe recorded.")
     def endKeyframe(self):
         success = self.demonstration.stop_recording()
@@ -222,6 +226,7 @@ class KinestheticTeachingWidget(QWidget):
                 text = "Failed to end recordning for an unknown reason. Check the logs for more information."
             self._showWarning("Could not end recording", text)
         else:
+            self._keyframeRecorded()
             self._showStatus("Recording saved.")
             self.loadLocation()
 
