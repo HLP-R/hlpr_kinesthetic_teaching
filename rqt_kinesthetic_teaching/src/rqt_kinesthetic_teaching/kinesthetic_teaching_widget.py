@@ -152,7 +152,7 @@ class KinestheticTeachingWidget(QWidget):
         self.playDemoButton.setEnabled(True)
     
     def _getDemonstrationHandler(self, signum, frame):
-        msg = "Could not load record keyframe demo server. Run `rosrun hlpr_record_demonstration record_demonstration_action_server.py`."
+        msg = "Could not load record keyframe demo server. Run `roslaunch hlpr_record_demonstration start_record_services.launch`."
         rospy.logerr(msg)
         raise TimeoutException(msg)
     def newLocation(self):
@@ -231,7 +231,7 @@ class KinestheticTeachingWidget(QWidget):
             self.loadLocation()
 
     def _playDemoHandler(self, signum, frame):
-        msg = "Could not load playback keyframe demo server. Run `rosrun hlpr_record_demonstration playback_demonstration_action_server.py`."
+        msg = "Could not load playback keyframe demo server. Run `roslaunch hlpr_record_demonstration start_playback_services.launch`."
         rospy.logerr(msg)
         raise TimeoutException(msg)
     def playDemo(self):
