@@ -124,13 +124,14 @@ class KinestheticTeachingWidget(QWidget):
                 title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
                 item.setText(0, title)
                 # Add children
-                for topic, data in keyframe["data"].items():
+                for topic in sorted(keyframe["data"]):
+                    data = keyframe["data"][topic]
                     topicItem = QTreeWidgetItem()
                     topicItem.setText(0, topic)
-                    for attribute, value in data.items():
+                    for attribute in sorted(data):
                         attributeValueItem = QTreeWidgetItem()
                         attributeValueItem.setText(0, attribute)
-                        attributeValueItem.setText(1, str(value))
+                        attributeValueItem.setText(1, str(data[attribute]))
                         topicItem.addChild(attributeValueItem)
                     item.addChild(topicItem)
                 items.append(item)
