@@ -5,7 +5,6 @@ from qt_gui.plugin import Plugin
 from python_qt_binding import loadUi
 from python_qt_binding.QtGui import QWidget
 
-import kinesthetic_interaction_interface
 from .kinesthetic_teaching_widget import KinestheticTeachingWidget
 
 class KinestheticTeaching(Plugin):
