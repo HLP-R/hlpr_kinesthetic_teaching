@@ -127,7 +127,8 @@
             <string> Open folder</string>
            </property>
            <property name="icon">
-            <iconset theme="folder"/>
+            <iconset theme="folder">
+             <normaloff>.</normaloff>.</iconset>
            </property>
           </widget>
          </item>
@@ -297,7 +298,7 @@
         <string>Start a keyframe demonstration</string>
        </property>
        <property name="text">
-        <string>Start keyframe</string>
+        <string>Start here</string>
        </property>
       </widget>
      </item>
@@ -322,7 +323,7 @@
         <string>Write a keyframe</string>
        </property>
        <property name="text">
-        <string>Add keyframe</string>
+        <string>Go here</string>
        </property>
       </widget>
      </item>
@@ -347,7 +348,7 @@
         <string>End a demonstration (keyframe or trajectory)</string>
        </property>
        <property name="text">
-        <string>End</string>
+        <string>End here</string>
        </property>
       </widget>
      </item>
