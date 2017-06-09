@@ -63,13 +63,23 @@ class KeyframeBagInterface():
                         position = msg.position,
                         requested_position = msg.requested_position
                     )
-                else:
+                elif topic == "joint_states":
                     for i, name in enumerate(msg.name):
                         data["data"]["/{}/{}".format(topic, name)] = dict(
                             position = msg.position[i],
                             velocity = msg.velocity[i],
                             effort = msg.effort[i]
                         )
+                elif topic == "eef_pose":
+                    data["data"]["/{}".format(topic)] = dict(
+                        position_x = msg.position.x,
+                        position_y = msg.position.y,
+                        position_z = msg.position.z,
+                        orientation_x = msg.orientation.x,
+                        orientation_y = msg.orientation.y,
+                        orientation_z = msg.orientation.z,
+                        orientation_w = msg.orientation.w
+                    )
 
                 if shouldAppend:
                     parsed.append(data)
