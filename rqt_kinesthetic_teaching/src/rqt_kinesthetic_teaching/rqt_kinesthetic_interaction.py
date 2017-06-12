@@ -13,7 +13,7 @@ class TimeoutException(Exception):
 
 class RQTKinestheticInteraction(KinestheticInteraction):
 
-    def __init__(self, verbose=True, arm_class=Arm):
+    def __init__(self, verbose=False, arm_class=Arm):
         self.arm_class = arm_class
 
         super(RQTKinestheticInteraction, self).__init__(verbose=verbose)

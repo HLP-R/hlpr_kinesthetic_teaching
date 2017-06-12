@@ -50,6 +50,8 @@ class KinestheticTeachingWidget(QWidget):
         self.startTrajectoryButton.clicked[bool].connect(self.startTrajectory)
         self.startButton.clicked[bool].connect(self.startKeyframe)
         self.addButton.clicked[bool].connect(self.addKeyframe)
+        self.openHandButton.clicked[bool].connect(self.openHand)
+        self.closeHandButton.clicked[bool].connect(self.closeHand)
         self.endButton.clicked[bool].connect(self.endKeyframe)
         self.playDemoButton.clicked[bool].connect(self.playDemo)
 
@@ -94,6 +96,8 @@ class KinestheticTeachingWidget(QWidget):
         self.startTrajectoryButton.setEnabled(False)
         self.startButton.setEnabled(False)
         self.addButton.setEnabled(False)
+        self.openHandButton.setEnabled(False)
+        self.closeHandButton.setEnabled(False)
         self.endButton.setEnabled(False)
 
         location = self.demoLocation.text()
@@ -159,9 +163,12 @@ class KinestheticTeachingWidget(QWidget):
         if len(location) == 0:
             return
         self.demoLocation.setText(location)
+        self.playDemoButton.setEnabled(False)
         self.startTrajectoryButton.setEnabled(True)
         self.startButton.setEnabled(True)
         self.addButton.setEnabled(True)
+        self.openHandButton.setEnabled(True)
+        self.closeHandButton.setEnabled(True)
         self.endButton.setEnabled(True)
 
         try:
@@ -223,6 +230,11 @@ class KinestheticTeachingWidget(QWidget):
         else:
             self._keyframeRecorded()
             self._showStatus("Keyframe recorded.")
+
+    def openHand(self):
+        self.kinesthetic_interaction._open_hand()
+    def closeHand(self):
+        self.kinesthetic_interaction._close_hand()
 
     def endKeyframe(self):
         self.kinesthetic_interaction.demonstration_end(None)
