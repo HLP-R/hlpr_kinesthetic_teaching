@@ -6,6 +6,7 @@ import time
 import rosbag
 import rospkg
 import rospy
+from hlpr_kinesthetic_interaction.srv import KinestheticInteract
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, Signal, qWarning
@@ -181,6 +182,11 @@ class KinestheticTeachingWidget(QWidget):
         if not self.kinesthetic_interaction:
             try:
                 self.kinesthetic_interaction = RQTKinestheticInteraction()
+                print "Waiting for RQT kinesthetic interaction service"
+                rospy.wait_for_service("kinesthetic_interaction")
+                enable_kinesthetic_service = rospy.ServiceProxy("kinesthetic_interaction", KinestheticInteract)
+                enable_kinesthetic_service(True)
+
                 # Register callbacks
                 self.kinesthetic_interaction.start_trajectory_cb = self.startTrajectoryCallback
                 self.kinesthetic_interaction.start_keyframe_cb = self.startKeyframeCallback
