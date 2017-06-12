@@ -1,21 +1,22 @@
 import os
-import rosbag
-import rospy
-import rospkg
 import signal
-import time
 import threading
+import time
 
-from python_qt_binding import loadUi
-from python_qt_binding.QtCore import Qt, qWarning, Signal
-from python_qt_binding.QtGui import QFileDialog, QGraphicsView, QIcon, QWidget, QMessageBox, QHeaderView, QTreeWidgetItem
-
+import rosbag
+import rospkg
+import rospy
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
-from hlpr_record_demonstration.demonstration import Demonstration
-from keyframe_bag_interface import ParseException, KeyframeBagInterface
+from python_qt_binding import loadUi
+from python_qt_binding.QtCore import Qt, Signal, qWarning
+from python_qt_binding.QtGui import (QFileDialog, QGraphicsView, QHeaderView,
+                                     QIcon, QMessageBox, QTreeWidgetItem,
+                                     QWidget)
 
-class TimeoutException(Exception):
-    pass
+from keyframe_bag_interface import KeyframeBagInterface, ParseException
+from rqt_kinesthetic_interaction import (RQTKinestheticInteraction,
+                                         TimeoutException)
+
 
 class KinestheticTeachingWidget(QWidget):
     """
@@ -58,6 +59,7 @@ class KinestheticTeachingWidget(QWidget):
         self.playbackTree.header().setResizeMode(1, QHeaderView.ResizeToContents)
 
         self.previousStatusText = None
+        self.kinesthetic_interaction = None
 
     def _showWarning(self, title, body):
         msg = QMessageBox()
@@ -152,10 +154,6 @@ class KinestheticTeachingWidget(QWidget):
         self._showStatus("Parsed {} keyframe(s).".format(totalFrames))
         self.playDemoButton.setEnabled(True)
     
-    def _getDemonstrationHandler(self, signum, frame):
-        msg = "Could not load record keyframe demo server. Run `roslaunch hlpr_record_demonstration start_record_services.launch`."
-        rospy.logerr(msg)
-        raise TimeoutException(msg)
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter="*.bag;;*", directory=os.path.dirname(self.demoLocation.text()))[0]
         if len(location) == 0:
@@ -173,19 +171,21 @@ class KinestheticTeachingWidget(QWidget):
             pass
 
         # Initialize the demonstration recorder
-        #rospy.init_node("demonstration_node", anonymous=False)
-        #rospy.loginfo("Initializing the demonstration node")
-        signal.signal(signal.SIGALRM, self._getDemonstrationHandler)
-        signal.alarm(2)
-        try:
-            self.demonstration = Demonstration()
-        except TimeoutException as err:
-            self._showWarning("Record keyframe demo server unreachable", str(err))
-            return
-        signal.alarm(0)
-        self.demonstration.init_demo(custom_name = os.path.basename(location), new_dir = os.path.dirname(location), timestamp = self.shouldTimestamp.isChecked())
-        self.demoLocation.setText(self.demonstration.filename)
-        self.demoName.setText(os.path.basename(self.demonstration.filename))
+        if not self.kinesthetic_interaction:
+            try:
+                self.kinesthetic_interaction = RQTKinestheticInteraction()
+                # Register callbacks
+                self.kinesthetic_interaction.start_trajectory_cb = self.startTrajectoryCallback
+                self.kinesthetic_interaction.start_keyframe_cb = self.startKeyframeCallback
+                self.kinesthetic_interaction.add_keyframe_cb = self.addKeyframeCallback
+                self.kinesthetic_interaction.end_keyframe_cb = self.endKeyframeCallback
+            except TimeoutException as err:
+                self._showWarning("Record keyframe demo server unreachable", str(err))
+                return
+
+        saveFile = self.kinesthetic_interaction.init_demo(location=location, timestamp=self.shouldTimestamp.isChecked())
+        self.demoLocation.setText(saveFile)
+        self.demoName.setText(os.path.basename(saveFile))
         self.keyframeCount.setText("")
         self.playbackTree.clear()
 
@@ -198,33 +198,40 @@ class KinestheticTeachingWidget(QWidget):
         self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
 
     def startTrajectory(self):
-        success = self.demonstration.start_trajectory()
+        self.kinesthetic_interaction.demonstration_start_trajectory(None)
+    def startTrajectoryCallback(self, success):
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
         else:
             self._keyframeRecorded()
             self._showStatus("Trajectory started.")
+
     def startKeyframe(self):
-        success = self.demonstration.start_keyframe()
+        self.kinesthetic_interaction.demonstration_start(None)
+    def startKeyframeCallback(self, success):
         if not success:
             self._showWarning("Could not start recording", "Failed to start keyframe recording. A recording is already in progress.")
         else:
             self._keyframeRecorded()
             self._showStatus("Keyframe recording started.")
+    
     def addKeyframe(self):
-        success = self.demonstration.write_keyframe()
+        self.kinesthetic_interaction.demonstration_keyframe(None)
+    def addKeyframeCallback(self, success):
         if not success:
             self._showWarning("Could not record keyframe", "Failed to record keyframe. A recording is not currently in progress.")
         else:
             self._keyframeRecorded()
             self._showStatus("Keyframe recorded.")
+
     def endKeyframe(self):
-        success = self.demonstration.stop_recording()
+        self.kinesthetic_interaction.demonstration_end(None)
+    def endKeyframeCallback(self, success):
         if not success:
-            if not self.demonstration.recording:
+            if not self.kinesthetic_interaction.demonstration.recording:
                 text = "Failed to end recording. A recording is currently not in progress."
             else:
-                text = "Failed to end recordning for an unknown reason. Check the logs for more information."
+                text = "Failed to end recording for an unknown reason. Check the logs for more information."
             self._showWarning("Could not end recording", text)
         else:
             self._keyframeRecorded()
