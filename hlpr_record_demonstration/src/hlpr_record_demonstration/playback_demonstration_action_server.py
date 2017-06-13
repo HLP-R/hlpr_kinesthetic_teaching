@@ -145,6 +145,8 @@ class PlaybackKFDemoAction(object):
     GRIPPER_TOPIC = 'gripper/stat'
     gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
     playback_topics.extend(gripper_topics)
+    OBJECT_LOCATION_TOPIC = "object_location"
+    playback_topics.append(OBJECT_LOCATION_TOPIC)
     gripper_msgs = dict()
     self.gripper_pos = dict()
 
@@ -182,7 +184,9 @@ class PlaybackKFDemoAction(object):
         else:
           # Pull out the joint values for the arm from the message
           pts = self._get_arm_joint_values(msg)
-          
+
+          print all_messages[OBJECT_LOCATION_TOPIC][msg_count]
+
           # Ask the arm planner to plan for that joint target from current position
           plan = self.arm_planner.plan_jointTargetInput(pts)
 
@@ -197,7 +201,6 @@ class PlaybackKFDemoAction(object):
         # Execute Gripper if needed
         for gripper_topic in gripper_topics:
           pos = gripper_msgs[gripper_topic][msg_count].requested_position
-          print pos
           if abs(pos - self.gripper_pos[gripper_topic]) > self.GRIPPER_THRESHOLD:
             # Actually set the gripper value
             self.gripper_helper(gripper_topic, pos)
