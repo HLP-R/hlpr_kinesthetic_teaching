@@ -80,6 +80,21 @@ class KeyframeBagInterface():
                         orientation_z = msg.orientation.z,
                         orientation_w = msg.orientation.w
                     )
+                elif topic == "object_location":
+                    for item in msg.objects:
+                        data["data"]["/{}/{}".format(topic, item.label)] = dict(
+                            label = item.label,
+                            probability = item.probability,
+                            position_x = item.pose.position.x,
+                            position_y = item.pose.position.y,
+                            position_z = item.pose.position.z,
+                            orientation_x = item.pose.orientation.x,
+                            orientation_y = item.pose.orientation.y,
+                            orientation_z = item.pose.orientation.z,
+                            orientation_w = item.pose.orientation.w
+                        )
+                else:
+                    rospy.loginfo("Found unknown topic while parsing: {}".format(topic))
 
                 if shouldAppend:
                     parsed.append(data)

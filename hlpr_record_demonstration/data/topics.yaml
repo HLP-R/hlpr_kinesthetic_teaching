@@ -7,3 +7,6 @@ msg_type: geometry_msgs/Pose
 ---
 topic: /vector/right_gripper/stat
 msg_type: vector_msgs/GripperStat
+---
+topic: object_location
+msg_type: object_location/Objects

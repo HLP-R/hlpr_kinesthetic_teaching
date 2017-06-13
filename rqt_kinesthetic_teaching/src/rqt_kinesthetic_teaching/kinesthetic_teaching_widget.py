@@ -219,6 +219,7 @@ class KinestheticTeachingWidget(QWidget):
         self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
 
     def startTrajectory(self):
+        print "Saving to {}".format(self.kinesthetic_interaction.demonstration.filename)
         self.kinesthetic_interaction.demonstration_start_trajectory(None)
     def startTrajectoryCallback(self, success):
         if not success:
@@ -230,6 +231,7 @@ class KinestheticTeachingWidget(QWidget):
             self._showStatus("Trajectory started.")
 
     def startKeyframe(self):
+        print "Saving to {}".format(self.kinesthetic_interaction.demonstration.filename)
         self.kinesthetic_interaction.demonstration_start(None)
     def startKeyframeCallback(self, success):
         if not success:

@@ -6,6 +6,7 @@ from hlpr_kinesthetic_interaction.jaco_arm import Arm
 from hlpr_kinesthetic_interaction.kinesthetic_interaction import \
     KinestheticInteraction
 from hlpr_record_demonstration.demonstration import Demonstration
+from object_location.srv import LocationQuery
 
 
 class TimeoutException(Exception):
@@ -31,6 +32,8 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         self.add_keyframe_cb = None
         self.end_keyframe_cb = None
 
+        self.object_locator = rospy.ServiceProxy("location_query", LocationQuery)
+
     def _demonstrationTimeoutHandler(self, signum, frame):
         msg = "Could not load record keyframe demo server. Run `roslaunch hlpr_record_demonstration start_record_services.launch`."
         rospy.logerr(msg)
@@ -53,7 +56,13 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         #rospy.loginfo("Received command: %s", cmd)
         pass
 
+    def _locate_objects(self):
+        rospy.loginfo("Waiting for object locator service...")
+        self.object_locator()
+        rospy.loginfo("Object locator service finished")
+
     def demonstration_start(self, cmd):
+        self._locate_objects()
         success = self.demonstration.start_keyframe()
         self.start_keyframe_cb(success)
 
@@ -66,6 +75,7 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         self.end_keyframe_cb(success)
 
     def demonstration_start_trajectory(self, cmd):
+        self._locate_objects()
         success = self.demonstration.start_trajectory()
         self.start_trajectory_cb(success)
  
