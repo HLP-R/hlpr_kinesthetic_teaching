@@ -399,6 +399,22 @@
        </property>
       </spacer>
      </item>
+     <item alignment="Qt::AlignHCenter">
+      <widget class="QCheckBox" name="enableKIBox">
+       <property name="toolTip">
+        <string>Enable or disable kinesthetic interaction</string>
+       </property>
+       <property name="text">
+        <string>KI enabled</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+       <property name="tristate">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
      <item>
       <widget class="QLabel" name="status">
        <property name="maximumSize">

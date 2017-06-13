@@ -55,14 +55,33 @@ class KinestheticTeachingWidget(QWidget):
         self.closeHandButton.clicked[bool].connect(self.closeHand)
         self.endButton.clicked[bool].connect(self.endKeyframe)
         self.playDemoButton.clicked[bool].connect(self.playDemo)
+        self.enableKIBox.stateChanged.connect(self.enableKI)
 
         # Set sizing options for tree widget headers
         self.playbackTree.header().setStretchLastSection(False)
         self.playbackTree.header().setResizeMode(0, QHeaderView.Stretch)
         self.playbackTree.header().setResizeMode(1, QHeaderView.ResizeToContents)
 
-        self.previousStatusText = None
+        # Initialize the demonstration recorder
         self.kinesthetic_interaction = None
+        try:
+            self.kinesthetic_interaction = RQTKinestheticInteraction()
+            print "Waiting for RQT kinesthetic interaction service"
+            rospy.wait_for_service("kinesthetic_interaction")
+            self.enable_kinesthetic_service = rospy.ServiceProxy("kinesthetic_interaction", KinestheticInteract)
+            self.enable_kinesthetic_service(True)
+
+            # Register callbacks
+            self.kinesthetic_interaction.start_trajectory_cb = self.startTrajectoryCallback
+            self.kinesthetic_interaction.start_keyframe_cb = self.startKeyframeCallback
+            self.kinesthetic_interaction.add_keyframe_cb = self.addKeyframeCallback
+            self.kinesthetic_interaction.end_keyframe_cb = self.endKeyframeCallback
+        except TimeoutException as err:
+            self._showWarning("Record keyframe demo server unreachable", str(err))
+
+    def enableKI(self, state):
+        enabled = state != 0
+        self.enable_kinesthetic_service(enabled)
 
     def _showWarning(self, title, body):
         msg = QMessageBox()
@@ -178,23 +197,9 @@ class KinestheticTeachingWidget(QWidget):
         except OSError:
             pass
 
-        # Initialize the demonstration recorder
         if not self.kinesthetic_interaction:
-            try:
-                self.kinesthetic_interaction = RQTKinestheticInteraction()
-                print "Waiting for RQT kinesthetic interaction service"
-                rospy.wait_for_service("kinesthetic_interaction")
-                enable_kinesthetic_service = rospy.ServiceProxy("kinesthetic_interaction", KinestheticInteract)
-                enable_kinesthetic_service(True)
-
-                # Register callbacks
-                self.kinesthetic_interaction.start_trajectory_cb = self.startTrajectoryCallback
-                self.kinesthetic_interaction.start_keyframe_cb = self.startKeyframeCallback
-                self.kinesthetic_interaction.add_keyframe_cb = self.addKeyframeCallback
-                self.kinesthetic_interaction.end_keyframe_cb = self.endKeyframeCallback
-            except TimeoutException as err:
-                self._showWarning("Record keyframe demo server unreachable", str(err))
-                return
+            self._showWarning("Record keyframe demo server unreachable", "Record keyframe demo server isn't loaded. Run `roslaunch hlpr_record_demonstration start_record_services.launch` and restart the GUI.")
+            return
 
         saveFile = self.kinesthetic_interaction.init_demo(location=location, timestamp=self.shouldTimestamp.isChecked())
         self.demoLocation.setText(saveFile)
