@@ -224,6 +224,8 @@ class KinestheticTeachingWidget(QWidget):
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
         else:
+            self.keyframeCount.setText("")
+            self.playbackTree.clear()
             self._keyframeRecorded()
             self._showStatus("Trajectory started.")
 
@@ -233,6 +235,8 @@ class KinestheticTeachingWidget(QWidget):
         if not success:
             self._showWarning("Could not start recording", "Failed to start keyframe recording. A recording is already in progress.")
         else:
+            self.keyframeCount.setText("")
+            self.playbackTree.clear()
             self._keyframeRecorded()
             self._showStatus("Keyframe recording started.")
     
@@ -266,6 +270,7 @@ class KinestheticTeachingWidget(QWidget):
                 self.loadLocation()
             else:
                 rospy.loginfo("Recording saved but cannot be opened automatically because the end keyframe was written from a different thread. Please open the .bag file manually.")
+                rospy.loginfo("Recording saved to {}".format(self.kinesthetic_interaction.demonstration.filename))
 
     def _playDemoHandler(self, signum, frame):
         msg = "Could not load playback keyframe demo server. Run `roslaunch hlpr_record_demonstration start_playback_services.launch`."

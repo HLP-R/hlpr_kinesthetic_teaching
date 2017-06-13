@@ -22,6 +22,7 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         signal.alarm(2)
         signal.signal(signal.SIGALRM, self._demonstrationTimeoutHandler)
         self.demonstration = Demonstration()
+        self.demonstration.init_demo()
         signal.alarm(0)
 
         # Define callbacks
