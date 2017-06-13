@@ -84,12 +84,15 @@ class KinestheticTeachingWidget(QWidget):
         self.enable_kinesthetic_service(enabled)
 
     def _showWarning(self, title, body):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle(title)
-        msg.setText(body)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
+        if threading.current_thread().name != "MainThread":
+            rospy.logwarn("{}: {}".format(title, body))
+        else:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle(title)
+            msg.setText(body)
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
     def _showStatus(self, text):
         self.status.setText(text)
         self.previousStatusText = text
@@ -259,7 +262,10 @@ class KinestheticTeachingWidget(QWidget):
         else:
             self._keyframeRecorded()
             self._showStatus("Recording saved.")
-            self.loadLocation()
+            if threading.current_thread().name == "MainThread":
+                self.loadLocation()
+            else:
+                rospy.loginfo("Recording saved but cannot be opened automatically because the end keyframe was written from a different thread. Please open the .bag file manually.")
 
     def _playDemoHandler(self, signum, frame):
         msg = "Could not load playback keyframe demo server. Run `roslaunch hlpr_record_demonstration start_playback_services.launch`."
