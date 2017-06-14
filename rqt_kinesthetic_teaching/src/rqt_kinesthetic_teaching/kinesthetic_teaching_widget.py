@@ -218,12 +218,21 @@ class KinestheticTeachingWidget(QWidget):
         self.playbackTree.scrollToItem(item)
         self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
 
-    def startTrajectory(self):
+    def _generalStartActions(self):
+        self.kinesthetic_interaction.should_locate_objects = self.locateObjectsBox.isChecked()
+        if self.kinesthetic_interaction.should_locate_objects:
+            self._showStatus("Locating objects in scene...");
         print "Saving to {}".format(self.kinesthetic_interaction.demonstration.filename)
+
+    def startTrajectory(self):
+        self.startTrajectoryButton.setEnabled(False)
+        self.startButton.setEnabled(False)
+        self._generalStartActions()
         self.kinesthetic_interaction.demonstration_start_trajectory(None)
     def startTrajectoryCallback(self, success):
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
+            self.startTrajectoryButton.setEnabled(True)
         else:
             self.keyframeCount.setText("")
             self.playbackTree.clear()
@@ -231,10 +240,13 @@ class KinestheticTeachingWidget(QWidget):
             self._showStatus("Trajectory started.")
 
     def startKeyframe(self):
-        print "Saving to {}".format(self.kinesthetic_interaction.demonstration.filename)
+        self.startTrajectoryButton.setEnabled(False)
+        self.startButton.setEnabled(False)
+        self._generalStartActions()
         self.kinesthetic_interaction.demonstration_start(None)
     def startKeyframeCallback(self, success):
         if not success:
+            self.startButton.setEnabled(True)
             self._showWarning("Could not start recording", "Failed to start keyframe recording. A recording is already in progress.")
         else:
             self.keyframeCount.setText("")

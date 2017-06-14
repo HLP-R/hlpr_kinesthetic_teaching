@@ -33,6 +33,7 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         self.end_keyframe_cb = None
 
         self.object_locator = rospy.ServiceProxy("location_query", LocationQuery)
+        self.should_locate_objects = True
 
     def _demonstrationTimeoutHandler(self, signum, frame):
         msg = "Could not load record keyframe demo server. Run `roslaunch hlpr_record_demonstration start_record_services.launch`."
@@ -57,9 +58,10 @@ class RQTKinestheticInteraction(KinestheticInteraction):
         pass
 
     def _locate_objects(self):
-        rospy.loginfo("Waiting for object locator service...")
-        self.object_locator()
-        rospy.loginfo("Object locator service finished")
+        if self.should_locate_objects:
+            rospy.loginfo("Waiting for object locator service...")
+            self.object_locator()
+            rospy.loginfo("Object locator service finished")
 
     def demonstration_start(self, cmd):
         self._locate_objects()

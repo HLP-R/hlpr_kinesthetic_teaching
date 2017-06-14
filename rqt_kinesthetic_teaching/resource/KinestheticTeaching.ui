@@ -400,7 +400,26 @@
       </spacer>
      </item>
      <item alignment="Qt::AlignHCenter">
+      <widget class="QCheckBox" name="locateObjectsBox">
+       <property name="toolTip">
+        <string>Enable or disable object_location to be run when starting a new keyframe sequence (can take a while)</string>
+       </property>
+       <property name="text">
+        <string>Locate objects</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item alignment="Qt::AlignHCenter">
       <widget class="QCheckBox" name="enableKIBox">
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
        <property name="toolTip">
         <string>Enable or disable kinesthetic interaction</string>
        </property>
