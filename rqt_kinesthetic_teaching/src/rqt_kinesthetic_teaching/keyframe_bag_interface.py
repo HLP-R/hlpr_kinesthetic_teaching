@@ -22,8 +22,22 @@ class ParseException(Exception):
 class KeyframeBagInterface():
     
     def __init__(self):
-        self.bag = None
         self.client = None
+
+    def parseContainedObjects(self, file):
+        """
+        Partially parses a bag file to extract object location information
+        """
+        if not os.path.isfile(file):
+            raise ParseException("File does not exist")
+
+        with rosbag.Bag(file) as bag:
+            # Only read the first keyframe because the object locations are assumed to not change since recording started
+            try:
+                (topic, msg, time) = bag.read_messages("object_location").next()
+            except StopIteration:
+                return []
+            return msg.objects
 
     def parse(self, file):
         """
@@ -34,14 +48,13 @@ class KeyframeBagInterface():
             raise ParseException("File does not exist")
 
         with rosbag.Bag(file) as bag:
-            self.bag = bag
             parsed = []
 
-            all_topics = self.bag.get_type_and_topic_info().topics.keys()
+            all_topics = bag.get_type_and_topic_info().topics.keys()
             GRIPPER_TOPIC = "gripper/stat"
             gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x]
 
-            for topic, msg, time in self.bag.read_messages():
+            for topic, msg, time in bag.read_messages():
                 # Grabber and joint messages will be linked if they are within 100 ms of each other
                 # More precision runs into problems described at https://stackoverflow.com/a/22155830
                 time_key = round(time.to_time(), 1)

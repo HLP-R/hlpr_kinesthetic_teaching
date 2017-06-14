@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import os
 import signal
 import threading
@@ -10,9 +11,9 @@ from hlpr_kinesthetic_interaction.srv import KinestheticInteract
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, Signal, qWarning
-from python_qt_binding.QtGui import (QFileDialog, QGraphicsView, QHeaderView,
-                                     QIcon, QMessageBox, QTreeWidgetItem,
-                                     QWidget)
+from python_qt_binding.QtGui import (QComboBox, QFileDialog, QGraphicsView,
+                                     QHeaderView, QIcon, QMessageBox,
+                                     QTreeWidgetItem, QWidget)
 
 from keyframe_bag_interface import KeyframeBagInterface, ParseException
 from rqt_kinesthetic_interaction import (RQTKinestheticInteraction,
@@ -61,6 +62,8 @@ class KinestheticTeachingWidget(QWidget):
         self.playbackTree.header().setStretchLastSection(False)
         self.playbackTree.header().setResizeMode(0, QHeaderView.Stretch)
         self.playbackTree.header().setResizeMode(1, QHeaderView.ResizeToContents)
+
+        self.zeroMarker.setInsertPolicy(QComboBox.InsertAlphabetically)
 
         # Initialize the demonstration recorder
         self.kinesthetic_interaction = None
@@ -134,18 +137,33 @@ class KinestheticTeachingWidget(QWidget):
         
         self.keyframeCount.setText("")
         self.playbackTree.clear()
+        self.zeroMarker.clear()
         self._showStatus("Parsing...")
         
         totalFrames = 0
         for location in sorted(locations):
             try:
-                parsedData = KeyframeBagInterface().parse(location)
+                keyframeBagInterface = KeyframeBagInterface()
+                parsedData = keyframeBagInterface.parse(location)
+                objectsInScene = keyframeBagInterface.parseContainedObjects(location)
             except (rosbag.bag.ROSBagException, ParseException) as err:
                 self._showStatus(str(err))
                 rospy.logwarn("[%s] %s", location, str(err))
                 self.playbackTree.clear()
                 return
             totalFrames += len(parsedData)
+
+            objectLabels = []
+            for item in objectsInScene:
+                label = item.label
+                if objectLabels.count(label) > 0:
+                    label = "{} #{}".format(label, objectLabels.count(label) + 1)
+                objectLabels.append(item.label)
+
+                if len(locations) > 1:
+                    self.zeroMarker.addItem(u"{} → {}".format(label, os.path.basename(location)))
+                else:
+                    self.zeroMarker.addItem(label)
 
             items = []
             for i, keyframe in enumerate(parsedData):
@@ -180,6 +198,7 @@ class KinestheticTeachingWidget(QWidget):
             self.keyframeCount.setText("{} keyframe(s) loaded from {} files".format(totalFrames, len(locations)))
         self._showStatus("Parsed {} keyframe(s).".format(totalFrames))
         self.playDemoButton.setEnabled(True)
+        self.zeroMarker.setEnabled(True)
     
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter="*.bag;;*", directory=os.path.dirname(self.demoLocation.text()))[0]
@@ -187,6 +206,8 @@ class KinestheticTeachingWidget(QWidget):
             return
         self.demoLocation.setText(location)
         self.playDemoButton.setEnabled(False)
+        self.zeroMarker.clear()
+        self.zeroMarker.setEnabled(False)
         self.startTrajectoryButton.setEnabled(True)
         self.startButton.setEnabled(True)
         self.addButton.setEnabled(True)
@@ -219,14 +240,16 @@ class KinestheticTeachingWidget(QWidget):
         self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
 
     def _generalStartActions(self):
+        self.startTrajectoryButton.setEnabled(False)
+        self.startButton.setEnabled(False)
+
         self.kinesthetic_interaction.should_locate_objects = self.locateObjectsBox.isChecked()
         if self.kinesthetic_interaction.should_locate_objects:
             self._showStatus("Locating objects in scene...");
+        
         print "Saving to {}".format(self.kinesthetic_interaction.demonstration.filename)
 
     def startTrajectory(self):
-        self.startTrajectoryButton.setEnabled(False)
-        self.startButton.setEnabled(False)
         self._generalStartActions()
         self.kinesthetic_interaction.demonstration_start_trajectory(None)
     def startTrajectoryCallback(self, success):
@@ -240,8 +263,6 @@ class KinestheticTeachingWidget(QWidget):
             self._showStatus("Trajectory started.")
 
     def startKeyframe(self):
-        self.startTrajectoryButton.setEnabled(False)
-        self.startButton.setEnabled(False)
         self._generalStartActions()
         self.kinesthetic_interaction.demonstration_start(None)
     def startKeyframeCallback(self, success):
