@@ -267,11 +267,12 @@ class KinestheticTeachingWidget(QWidget):
             self._showWarning("Could not end recording", text)
         else:
             self._keyframeRecorded()
-            self._showStatus("Recording saved.")
             if threading.current_thread().name == "MainThread":
+                self._showStatus("Recording saved.")
                 self.loadLocation()
             else:
-                rospy.loginfo("Recording saved but cannot be opened automatically because the end keyframe was written from a different thread. Please open the .bag file manually.")
+                self._showStatus("Recording saved. Please open file manually.")
+                rospy.logwarn("Recording saved but cannot be opened automatically because the end keyframe was written from a different thread. Please open the .bag file manually.")
                 rospy.loginfo("Recording saved to {}".format(self.kinesthetic_interaction.demonstration.filename))
 
     def _playDemoHandler(self, signum, frame):
