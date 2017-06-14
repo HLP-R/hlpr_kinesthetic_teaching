@@ -334,6 +334,6 @@ class KinestheticTeachingWidget(QWidget):
 
         self._showStatus("Playing...")
         rospy.loginfo("Playing {}".format(location))
-        keyframeBagInterface.play(location, self.playDemoDone)
+        keyframeBagInterface.play(location, self.zeroMarker.currentText(), self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
