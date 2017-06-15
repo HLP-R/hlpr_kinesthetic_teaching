@@ -31,23 +31,27 @@
 # Author: Andrea Thomaz, athomaz@diligentdroids.com
 # Edited 8/9/2016: Vivian Chu, vchu@diligentdroids.com - works with EEF
 
-import sys
 import copy
-import rospy
-import actionlib
-import time
-import rosbag
-import string
 import os
+import string
+import sys
+import time
+
+import actionlib
 import moveit_commander
-
-from hlpr_manipulation_utils.manipulator import *
-from hlpr_manipulation_utils.arm_moveit import *
-
-from hlpr_record_demonstration.msg import PlaybackKeyframeDemoAction, PlaybackKeyframeDemoGoal, PlaybackKeyframeDemoResult, PlaybackKeyframeDemoFeedback
-from std_msgs.msg import Int32, String
-from sensor_msgs.msg import JointState
+import rosbag
+import rospy
+import tf2_ros
 from geometry_msgs.msg import Pose
+from hlpr_manipulation_utils.arm_moveit import *
+from hlpr_manipulation_utils.manipulator import *
+from hlpr_record_demonstration.msg import (PlaybackKeyframeDemoAction,
+                                           PlaybackKeyframeDemoFeedback,
+                                           PlaybackKeyframeDemoGoal,
+                                           PlaybackKeyframeDemoResult)
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Int32, String
+
 
 # PlaybackKFDemoAction:
 # This is an action server that executes the demo stored in the bagfile given in the goal
@@ -118,6 +122,9 @@ class PlaybackKFDemoAction(object):
         ## input: keyframe demo goal has bagfile name and eef_only bool
         self.start_time = time.time()
 
+        tfBuffer = tf2_ros.Buffer()
+        tfListener = tf2_ros.TransformListener(tfBuffer)
+
         # Check if the bag file is valid
         # Example path if necessary
         bag_path = os.path.expanduser(goal.bag_file_name)
@@ -127,112 +134,131 @@ class PlaybackKFDemoAction(object):
             self.server.set_aborted(self.result, error_msg)
             rospy.logerr(error_msg)
             return
-        else:
-            self.bag = rosbag.Bag(bag_path)
+        with rosbag.Bag(bag_path) as bag:
+            self.bag = bag
 
-        # Check the number of playback - and warn/stop if we have more than X number of keyframes
-        if self.bag.get_message_count() > self.KEYFRAME_THRESHOLD:
-            error_msg = "Playback Keyframe Demo aborted due to too many frames: %d" % self.bag.get_message_count()
-            self.server.set_aborted(self.result, error_msg)
-            rospy.logerr(error_msg)
-            return
+            # Check the number of playback - and warn/stop if we have more than X number of keyframes
+            if self.bag.get_message_count() > self.KEYFRAME_THRESHOLD:
+                error_msg = "Playback Keyframe Demo aborted due to too many frames: %d" % self.bag.get_message_count()
+                self.server.set_aborted(self.result, error_msg)
+                rospy.logerr(error_msg)
+                return
 
-        keyframe_count = 0
+            keyframe_count = 0
 
-        # Check if we have a gripper topic. If so add it to playback 
-        all_topics = self.bag.get_type_and_topic_info().topics.keys()
-        playback_topics = [goal.target_topic]
-        GRIPPER_TOPIC = 'gripper/stat'
-        gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
-        playback_topics.extend(gripper_topics)
-        OBJECT_LOCATION_TOPIC = "object_location"
-        playback_topics.append(OBJECT_LOCATION_TOPIC)
-        gripper_msgs = dict()
-        self.gripper_pos = dict()
+            # Check if we have a gripper topic. If so add it to playback 
+            all_topics = self.bag.get_type_and_topic_info().topics.keys()
+            playback_topics = [goal.target_topic]
+            GRIPPER_TOPIC = 'gripper/stat'
+            gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
+            playback_topics.extend(gripper_topics)
+            OBJECT_LOCATION_TOPIC = "object_location"
+            playback_topics.append(OBJECT_LOCATION_TOPIC)
+            gripper_msgs = dict()
+            self.gripper_pos = dict()
 
-        while not self.server.is_preempt_requested():
+            while not self.server.is_preempt_requested():
 
-            # Cycle through the topics and messages and store them into list for ordering
-            all_messages = dict()
-    
-            for topic, msg, t in self.bag.read_messages(topics=playback_topics):
-
-                if topic not in all_messages:
-                    all_messages[topic] = []
-
-                all_messages[topic].append(msg) 
+                # Cycle through the topics and messages and store them into list for ordering
+                all_messages = dict()
         
-            # Pull out the playback topic
-            playback_list = all_messages[goal.target_topic]
-            for gripper_topic in gripper_topics: # either one or two grippers
-                gripper_msgs[gripper_topic] = all_messages[gripper_topic]
+                for topic, msg, t in self.bag.read_messages(topics=playback_topics):
 
-                # Actually set the gripper value
-                pos = gripper_msgs[gripper_topic][0].requested_position
-                self.gripper_helper(gripper_topic, pos)
+                    if topic not in all_messages:
+                        all_messages[topic] = []
 
-            for msg_count in xrange(len(playback_list)):
+                    all_messages[topic].append(msg) 
+            
+                # Pull out the playback topic
+                playback_list = all_messages[goal.target_topic]
+                for gripper_topic in gripper_topics: # either one or two grippers
+                    gripper_msgs[gripper_topic] = all_messages[gripper_topic]
 
-                msg = playback_list[msg_count]
+                    # Actually set the gripper value
+                    pos = gripper_msgs[gripper_topic][0].requested_position
+                    self.gripper_helper(gripper_topic, pos)
 
-                zeroMarker = None
-                for i, location in enumerate(all_messages[OBJECT_LOCATION_TOPIC][msg_count].objects):
-                    if location.label == goal.zero_marker:
-                        zeroMarker = location
-                        break
-                if zeroMarker:
-                    rospy.loginfo("Using zero marker \"{}\" (prob: {:.1%}) with position (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
-                        zeroMarker.label,
-                        zeroMarker.probability,
-                        zeroMarker.pose.position.x,
-                        zeroMarker.pose.position.y,
-                        zeroMarker.pose.position.z
-                    ))
-                else:
-                    rospy.loginfo("No zero marker passed or zero marker not found in keyframe #{}".format(i))
+                for msg_count in xrange(len(playback_list)):
+
+                    msg = playback_list[msg_count]
+
+                    zeroMarker = None
+                    for i, location in enumerate(all_messages[OBJECT_LOCATION_TOPIC][msg_count].objects):
+                        if location.label == goal.zero_marker:
+                            zeroMarker = location
+                            break
+                    if zeroMarker:
+                        try:
+                            currentZero = tfBuffer.lookup_transform("map", goal.zero_marker, rospy.Time(0), timeout=rospy.Duration(5)).transform
+                        except tf2_ros.LookupException:
+                            rospy.logerr("Specified label \"{}\" not found in current scene. Disable locate objects to play back absolute keyframe positions.")
+                            return
+                        rospy.loginfo("Using zero marker \"{}\" (prob: {:.1%}) with position (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
+                            zeroMarker.label,
+                            zeroMarker.probability,
+                            zeroMarker.pose.position.x,
+                            zeroMarker.pose.position.y,
+                            zeroMarker.pose.position.z
+                        ))
+                        rospy.loginfo("Found corresponding zero marker in current frame (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
+                            currentZero.translation.x,
+                            currentZero.translation.y,
+                            currentZero.translation.z
+                        ))
+                    else:
+                        rospy.loginfo("No zero marker passed or zero marker not found in keyframe #{}".format(msg_count))
                     
-                # Check if we need to convert the msg into joint values
-                if goal.eef_only:
-                    # Ask the arm planner to plan for that joint target from current position
-                    pt = Pose(msg.position, msg.orientation)
-                    plan = self.arm_planner.plan_poseTargetInput(pt)
+                        
+                    # Check if we need to convert the msg into joint values
+                    if goal.eef_only:
+                        # Ask the arm planner to plan for that joint target from current position
+                        pt = Pose(msg.position, msg.orientation)
 
-                else:
-                    # Pull out the joint values for the arm from the message
-                    pts = self._get_arm_joint_values(msg)
+                        if zeroMarker:
+                            # Compensate for new zero marker position
+                            pt.position.x += (currentZero.translation.x - zeroMarker.pose.position.x)
+                            pt.position.y += (currentZero.translation.y - zeroMarker.pose.position.y)
+                            pt.position.z += (currentZero.translation.z - zeroMarker.pose.position.z)
 
-                    # Ask the arm planner to plan for that joint target from current position
-                    plan = self.arm_planner.plan_jointTargetInput(pts)
+                            rospy.loginfo("Moving EEF to adjusted position: (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
+                                pt.position.x,
+                                pt.position.y,
+                                pt.position.z
+                            ))
+                        plan = self.arm_planner.plan_poseTargetInput(pt)
 
-                # Check if we have a valid plan
-                if plan == None or len(plan.joint_trajectory.points) < 1:
-                    print "Error: no plan found"
-                else:
-                    rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
-                    self.sendPlan(plan)
-                    keyframe_count+=1
+                    else:
+                        # Pull out the joint values for the arm from the message
+                        pts = self._get_arm_joint_values(msg)
 
-                # Execute Gripper if needed
-                for gripper_topic in gripper_topics:
-                    pos = gripper_msgs[gripper_topic][msg_count].requested_position
-                    if abs(pos - self.gripper_pos[gripper_topic]) > self.GRIPPER_THRESHOLD:
-                        # Actually set the gripper value
-                        self.gripper_helper(gripper_topic, pos)
+                        # Ask the arm planner to plan for that joint target from current position
+                        plan = self.arm_planner.plan_jointTargetInput(pts)
+
+                    # Check if we have a valid plan
+                    if plan == None or len(plan.joint_trajectory.points) < 1:
+                        print "Error: no plan found"
+                    else:
+                        rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
+                        self.sendPlan(plan)
+                        keyframe_count+=1
+
+                    # Execute Gripper if needed
+                    for gripper_topic in gripper_topics:
+                        pos = gripper_msgs[gripper_topic][msg_count].requested_position
+                        if abs(pos - self.gripper_pos[gripper_topic]) > self.GRIPPER_THRESHOLD:
+                            # Actually set the gripper value
+                            self.gripper_helper(gripper_topic, pos)
+                
+                self.result.time_elapsed = rospy.Duration.from_sec(time.time() - self.start_time)
+                complete_msg = "Playback Keyframe Demo completed successfully"
+                self.server.set_succeeded(self.result, complete_msg)
+                rospy.loginfo(complete_msg)
+                return
             
-
-            self.bag.close()
-            
-            self.result.time_elapsed = rospy.Duration.from_sec(time.time() - self.start_time)
-            complete_msg = "Playback Keyframe Demo completed successfully"
-            self.server.set_succeeded(self.result, complete_msg)
-            rospy.loginfo(complete_msg)
+            self.result.time_elapsed = rospy.Duration.from_sec(time.time() - start_time)
+            self.server.set_preempted(self.result, "playback keyframe demo preempted")
+            print 'preempted'
             return
-        
-        self.result.time_elapsed = rospy.Duration.from_sec(time.time() - start_time)
-        self.server.set_preempted(self.result, "playback keyframe demo preempted")  
-        self.bag.close()      
-        print 'preempted'
-        return
 
 
 if __name__ =='__main__':

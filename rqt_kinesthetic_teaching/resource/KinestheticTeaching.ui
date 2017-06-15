@@ -422,7 +422,7 @@
      <item alignment="Qt::AlignHCenter">
       <widget class="QCheckBox" name="locateObjectsBox">
        <property name="toolTip">
-        <string>Enable or disable object_location to be run when starting a new keyframe sequence (can take a while)</string>
+        <string>Enable or disable object_location to be run when playing or recording a new keyframe sequence (can take a while)</string>
        </property>
        <property name="text">
         <string>Locate objects</string>

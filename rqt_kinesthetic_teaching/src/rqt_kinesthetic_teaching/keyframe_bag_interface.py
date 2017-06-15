@@ -131,8 +131,13 @@ class KeyframeBagInterface():
 
         goal = PlaybackKeyframeDemoGoal()
         goal.bag_file_name = file
-        goal.eef_only = False
-        goal.target_topic = "joint_states"
-        goal.zero_marker = zeroMarker
+        if zeroMarker is None:
+            goal.target_topic = "joint_states"
+            goal.eef_only = False
+            goal.zero_marker = ""
+        else:
+            goal.target_topic = "eef_pose"
+            goal.eef_only = True
+            goal.zero_marker = zeroMarker
 
         self.client.send_goal(goal, feedback_cb=cb)

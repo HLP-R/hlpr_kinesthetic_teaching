@@ -57,6 +57,7 @@ class KinestheticTeachingWidget(QWidget):
         self.endButton.clicked[bool].connect(self.endKeyframe)
         self.playDemoButton.clicked[bool].connect(self.playDemo)
         self.enableKIBox.stateChanged.connect(self.enableKI)
+        self.locateObjectsBox.stateChanged.connect(self.locateObjectsChanged)
 
         # Set sizing options for tree widget headers
         self.playbackTree.header().setStretchLastSection(False)
@@ -198,7 +199,8 @@ class KinestheticTeachingWidget(QWidget):
             self.keyframeCount.setText("{} keyframe(s) loaded from {} files".format(totalFrames, len(locations)))
         self._showStatus("Parsed {} keyframe(s).".format(totalFrames))
         self.playDemoButton.setEnabled(True)
-        self.zeroMarker.setEnabled(True)
+        if self.locateObjectsBox.isChecked():
+            self.zeroMarker.setEnabled(True)
     
     def newLocation(self):
         location = QFileDialog.getSaveFileName(filter="*.bag;;*", directory=os.path.dirname(self.demoLocation.text()))[0]
@@ -239,11 +241,15 @@ class KinestheticTeachingWidget(QWidget):
         self.playbackTree.scrollToItem(item)
         self.keyframeCount.setText("{} keyframe(s) recorded".format(self.playbackTree.topLevelItemCount()))
 
+    def locateObjectsChanged(self):
+        self.kinesthetic_interaction.should_locate_objects = self.locateObjectsBox.isChecked()
+        if self.playDemoButton.isEnabled():
+            self.zeroMarker.setEnabled(self.locateObjectsBox.isChecked())
+    
     def _generalStartActions(self):
         self.startTrajectoryButton.setEnabled(False)
         self.startButton.setEnabled(False)
 
-        self.kinesthetic_interaction.should_locate_objects = self.locateObjectsBox.isChecked()
         if self.kinesthetic_interaction.should_locate_objects:
             self._showStatus("Locating objects in scene...");
         
@@ -332,8 +338,11 @@ class KinestheticTeachingWidget(QWidget):
                 return
             location = selected[0].text(0)
 
+        self.kinesthetic_interaction._locate_objects()
+
         self._showStatus("Playing...")
         rospy.loginfo("Playing {}".format(location))
-        keyframeBagInterface.play(location, self.zeroMarker.currentText(), self.playDemoDone)
+        zeroMarker = self.zeroMarker.currentText() if self.kinesthetic_interaction.should_locate_objects else None
+        keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
