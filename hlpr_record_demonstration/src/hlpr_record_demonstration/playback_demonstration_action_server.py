@@ -184,12 +184,23 @@ class PlaybackKFDemoAction(object):
 
                     msg = playback_list[msg_count]
 
-                    zeroMarker = None
-                    for i, location in enumerate(all_messages[OBJECT_LOCATION_TOPIC][msg_count].objects):
-                        if location.label == goal.zero_marker:
-                            zeroMarker = location
-                            break
-                    if zeroMarker:
+                    if goal.zero_marker:
+                        zeroMarker = None
+                        if not OBJECT_LOCATION_TOPIC in all_messages:
+                            rospy.logerr("Playback specified a zero marker but no object locations were found in keyframe #{}".format(msg_count))
+                            self.server.set_aborted(text="Object locations missing")
+                            return
+
+                        for i, location in enumerate(all_messages[OBJECT_LOCATION_TOPIC][msg_count].objects):
+                            if location.label == goal.zero_marker:
+                                zeroMarker = location
+                                break
+
+                        if not zeroMarker:
+                            rospy.logerr("Specified zero marker not found in .bag file in keyframe #{}".format(msg_count))
+                            self.server.set_aborted(text="Zero marker not found in .bag file")
+                            return
+
                         try:
                             currentZero = tfBuffer.lookup_transform("map", goal.zero_marker, rospy.Time(0), timeout=rospy.Duration(5)).transform
                         except tf2_ros.LookupException:
@@ -209,7 +220,7 @@ class PlaybackKFDemoAction(object):
                             currentZero.translation.z
                         ))
                     else:
-                        rospy.loginfo("No zero marker passed or zero marker not found in keyframe #{}".format(msg_count))
+                        rospy.loginfo("No zero marker passed for keyframe #{}".format(msg_count))
                     
                         
                     # Check if we need to convert the msg into joint values
