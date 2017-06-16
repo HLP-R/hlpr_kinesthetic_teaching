@@ -353,6 +353,9 @@ class KinestheticTeachingWidget(QWidget):
         self._showStatus("Playing...")
         rospy.loginfo("Playing {}".format(location))
         zeroMarker = self.zeroMarker.currentText() if self.kinesthetic_interaction.should_locate_objects else None
+        if zeroMarker is not None and os.path.isdir(self.demoLocation.text()):
+            zeroMarker = zeroMarker.split(u" → ")[0]
+
         keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
