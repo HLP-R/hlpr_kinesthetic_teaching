@@ -41,8 +41,9 @@ import actionlib
 import moveit_commander
 import rosbag
 import rospy
+import tf2_geometry_msgs
 import tf2_ros
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
 from hlpr_manipulation_utils.arm_moveit import *
 from hlpr_manipulation_utils.manipulator import *
 from hlpr_record_demonstration.msg import (PlaybackKeyframeDemoAction,
@@ -124,6 +125,7 @@ class PlaybackKFDemoAction(object):
 
         tfBuffer = tf2_ros.Buffer()
         tfListener = tf2_ros.TransformListener(tfBuffer)
+        tfBroadcaster = tf2_ros.TransformBroadcaster()
 
         # Check if the bag file is valid
         # Example path if necessary
@@ -191,7 +193,8 @@ class PlaybackKFDemoAction(object):
                         try:
                             currentZero = tfBuffer.lookup_transform("map", goal.zero_marker, rospy.Time(0), timeout=rospy.Duration(5)).transform
                         except tf2_ros.LookupException:
-                            rospy.logerr("Specified label \"{}\" not found in current scene. Disable locate objects to play back absolute keyframe positions.")
+                            rospy.logerr("Specified label \"{}\" not found in current scene. Disable locate objects to play back absolute keyframe positions.".format(zeroMarker.label))
+                            self.server.set_aborted(text="Specified label not found")
                             return
                         rospy.loginfo("Using zero marker \"{}\" (prob: {:.1%}) with position (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
                             zeroMarker.label,
@@ -215,11 +218,18 @@ class PlaybackKFDemoAction(object):
                         pt = Pose(msg.position, msg.orientation)
 
                         if zeroMarker:
+                            # Remap the point to the global map frame for adjustment
+                            baseLinkToMap = tfBuffer.lookup_transform("map", "base_link", rospy.Time(0), timeout=rospy.Duration(5))
+                            mapToBaseLink = tfBuffer.lookup_transform("base_link", "map", rospy.Time(0), timeout=rospy.Duration(5))
+                            ptAbsolute = tf2_geometry_msgs.do_transform_pose(PoseStamped(pose=pt), baseLinkToMap)
+                                                        
                             # Compensate for new zero marker position
-                            pt.position.x += (currentZero.translation.x - zeroMarker.pose.position.x)
-                            pt.position.y += (currentZero.translation.y - zeroMarker.pose.position.y)
-                            pt.position.z += (currentZero.translation.z - zeroMarker.pose.position.z)
-
+                            ptAbsolute.pose.position.x += (currentZero.translation.x - zeroMarker.pose.position.x)
+                            ptAbsolute.pose.position.y += (currentZero.translation.y - zeroMarker.pose.position.y)
+                            ptAbsolute.pose.position.z += (currentZero.translation.z - zeroMarker.pose.position.z)
+                            
+                            pt = tf2_geometry_msgs.do_transform_pose(ptAbsolute, mapToBaseLink).pose
+                            
                             rospy.loginfo("Moving EEF to adjusted position: (x: {:.2f}, y: {:.2f}, z: {:.2f})".format(
                                 pt.position.x,
                                 pt.position.y,
