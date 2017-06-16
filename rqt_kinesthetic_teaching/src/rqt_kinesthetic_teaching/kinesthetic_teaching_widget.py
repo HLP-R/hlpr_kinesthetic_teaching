@@ -257,7 +257,10 @@ class KinestheticTeachingWidget(QWidget):
 
     def startTrajectory(self):
         self._generalStartActions()
-        self.kinesthetic_interaction.demonstration_start_trajectory(None)
+        try:
+            self.kinesthetic_interaction.demonstration_start_trajectory(None)
+        except rospy.service.ServiceException:
+            self._showWarning("Object location unavailable", "The object_location service is unavailable and is required when \"Locate objects\" is checked. Launch it with `roslaunch object_location object_location_engine.launch`.")
     def startTrajectoryCallback(self, success):
         if not success:
             self._showWarning("Could not start recording", "Failed to start trajectory recording. A recording is already in progress.")
@@ -270,7 +273,10 @@ class KinestheticTeachingWidget(QWidget):
 
     def startKeyframe(self):
         self._generalStartActions()
-        self.kinesthetic_interaction.demonstration_start(None)
+        try:
+            self.kinesthetic_interaction.demonstration_start(None)
+        except rospy.service.ServiceException:
+            self._showWarning("Object location unavailable", "The object_location service is unavailable and is required when \"Locate objects\" is checked. Launch it with `roslaunch object_location object_location_engine.launch`.")
     def startKeyframeCallback(self, success):
         if not success:
             self.startButton.setEnabled(True)
@@ -338,7 +344,11 @@ class KinestheticTeachingWidget(QWidget):
                 return
             location = selected[0].text(0)
 
-        self.kinesthetic_interaction._locate_objects()
+        try:
+            self.kinesthetic_interaction._locate_objects()
+        except rospy.service.ServiceException:
+            self._showWarning("Object location unavailable", "The object_location service is unavailable and is required when \"Locate objects\" is checked. Launch it with `roslaunch object_location object_location_engine.launch`.")
+            return
 
         self._showStatus("Playing...")
         rospy.loginfo("Playing {}".format(location))
