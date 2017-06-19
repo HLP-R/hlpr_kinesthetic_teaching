@@ -78,6 +78,7 @@ class KinestheticInteraction:
 
         # Initialize speech synthesis
         self.speech = speech_synthesizer.SpeechSynthesizer()
+        self.last_command = None
 
         # Set flag for whether we're in kinesthetic mode
         self.active = False # Default is false
