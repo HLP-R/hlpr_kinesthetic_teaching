@@ -82,6 +82,7 @@ class KinestheticTeachingWidget(QWidget):
             self.kinesthetic_interaction.end_keyframe_cb = self.endKeyframeCallback
         except TimeoutException as err:
             self._showWarning("Record keyframe demo server unreachable", str(err))
+        self.keyframeBagInterface = None
 
     def enableKI(self, state):
         enabled = state != 0
@@ -144,9 +145,9 @@ class KinestheticTeachingWidget(QWidget):
         totalFrames = 0
         for location in sorted(locations):
             try:
-                keyframeBagInterface = KeyframeBagInterface()
-                parsedData = keyframeBagInterface.parse(location)
-                objectsInScene = keyframeBagInterface.parseContainedObjects(location)
+                self.keyframeBagInterface = KeyframeBagInterface()
+                parsedData = self.keyframeBagInterface.parse(location)
+                objectsInScene = self.keyframeBagInterface.parseContainedObjects(location)
             except (rosbag.bag.ROSBagException, ParseException) as err:
                 self._showStatus(str(err))
                 rospy.logwarn("[%s] %s", location, str(err))
@@ -326,12 +327,12 @@ class KinestheticTeachingWidget(QWidget):
         raise TimeoutException(msg)
     def playDemo(self):
         location = self.demoLocation.text()
-        keyframeBagInterface = KeyframeBagInterface()
+        self.keyframeBagInterface = KeyframeBagInterface()
 
         signal.signal(signal.SIGALRM, self._playDemoHandler)
         signal.alarm(2)
         try:
-            keyframeBagInterface.playInit()
+            self.keyframeBagInterface.playInit()
         except TimeoutException as err:
             self._showWarning("Playback keyframe demo server unreachable", str(err))
             return
@@ -356,6 +357,6 @@ class KinestheticTeachingWidget(QWidget):
         if zeroMarker is not None and os.path.isdir(self.demoLocation.text()):
             zeroMarker = zeroMarker.split(u" → ")[0]
 
-        keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
+        self.keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
     def playDemoDone(self, feedback):
         print(feedback)
