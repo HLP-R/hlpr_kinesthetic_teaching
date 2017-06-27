@@ -99,7 +99,11 @@ class RecordKFDemoAction(object):
       msg_pkg = msg_arr[0] + '.msg'
 
       # Import the message type
-      msg_mod = importlib.import_module(msg_pkg)
+      try:
+        msg_mod = importlib.import_module(msg_pkg)
+      except ImportError:
+        rospy.logwarn("Messages for type {} could not be imported because {} wasn't found. Messages of this type will not be recorded".format(msg_type, msg_pkg))
+        continue
 
       try:
         # Cycle through each topic and add each callback programatically
