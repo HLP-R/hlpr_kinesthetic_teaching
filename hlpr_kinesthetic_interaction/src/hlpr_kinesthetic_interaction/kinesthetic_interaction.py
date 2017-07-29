@@ -58,7 +58,7 @@ class KinestheticInteraction:
     RIGHT = 0
     LEFT = 1
 
-    def __init__(self, verbose = True):
+    def __init__(self, verbose = True, is7DOF = False):
 
         # Get topic that we should be listening to for speech commands
         self.sub_topic = rospy.get_param(SpeechListener.COMMAND_TOPIC_PARAM, None)
@@ -92,7 +92,7 @@ class KinestheticInteraction:
         # Get access to the gravity compensation service and gripper
         # WARN: You MUST have set the arm_class variable in the class that
         # extends this
-        self.arm = self.arm_class()
+        self.arm = self.arm_class(is7DOF)
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
