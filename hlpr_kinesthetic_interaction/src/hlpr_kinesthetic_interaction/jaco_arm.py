@@ -37,7 +37,7 @@ class Arm():
 
     def setGravityComp(self, toggle):
         if toggle:
-            self.enableGravComp()
+            return self.enableGravComp()
         else:
-            self.disableGravComp()
+            return self.disableGravComp()
  
