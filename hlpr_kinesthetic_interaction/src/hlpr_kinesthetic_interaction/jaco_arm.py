@@ -15,8 +15,8 @@ can use kinesthetic_interaction
 class Arm():
 
     GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp" 
-    ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300/in/start_gravity_comp"
-    DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300/in/stop_gravity_comp"
+    ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/start_gravity_comp"
+    DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/stop_gravity_comp"
 
     def __init__(self, is7DOF = False):
         # Setup gravity compensation
