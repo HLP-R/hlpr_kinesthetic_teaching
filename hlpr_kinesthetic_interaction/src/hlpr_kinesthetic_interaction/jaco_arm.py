@@ -19,25 +19,25 @@ class Arm():
     DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300/in/stop_gravity_comp"
 
     def __init__(self, is7DOF = False):
-      # Setup gravity compensation
-      rospy.logwarn("Waiting for gravity compensation service")
-	  if (is7DOF):
-        rospy.wait_for_service(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE)
-        rospy.wait_for_service(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE)
- 	    self.enableGravComp = rospy.ServiceProxy(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE, Start)
- 	    self.disableGravComp = rospy.ServiceProxy(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE, Stop)
-	    self.gravity_comp = self.setGravityComp
-	  else:
-        rospy.wait_for_service(Arm.GRAVITY_COMP_SERVICE)
-        self.gravity_comp = rospy.ServiceProxy(Arm.GRAVITY_COMP_SERVICE, GravComp)
-      rospy.logwarn("Gravity compenstation service loaded")
+        # Setup gravity compensation
+        rospy.logwarn("Waiting for gravity compensation service")
+        if (is7DOF):
+            rospy.wait_for_service(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE)
+            rospy.wait_for_service(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE)
+            self.enableGravComp = rospy.ServiceProxy(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE, Start)
+            self.disableGravComp = rospy.ServiceProxy(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE, Stop)
+            self.gravity_comp = self.setGravityComp
+        else:
+            rospy.wait_for_service(Arm.GRAVITY_COMP_SERVICE)
+            self.gravity_comp = rospy.ServiceProxy(Arm.GRAVITY_COMP_SERVICE, GravComp)
+        rospy.logwarn("Gravity compenstation service loaded")
 
-      # Initialize the gripper
-      self.gripper = Gripper()
+        # Initialize the gripper
+        self.gripper = Gripper()
 
     def setGravityComp(self, toggle):
-      if toggle:
-        self.enableGravComp()
-      else:
-        self.disableGravComp()
+        if toggle:
+            self.enableGravComp()
+        else:
+            self.disableGravComp()
  
