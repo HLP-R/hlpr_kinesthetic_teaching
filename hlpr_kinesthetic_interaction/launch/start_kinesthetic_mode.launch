@@ -9,11 +9,11 @@
     <arg name="data_prefix" default="demo"/>
     <!-- What kind of FT gravity comp used: force or torque -->
     <arg name="ft_type" default="torque"/>
-    <!-- What arm are you using (has to be exact name): jaco_arm, jaco_7dof_arm-->
-    <arg name="arm_name" default="jaco_arm"/>
 
     <!-- Set the global rosparam name for arm name -->
-    <param name="/kteach/arm_name" type="string" value="$(arg arm_name)"/>
+    <!-- What arm are you using (has to be exact name): jaco_arm, jaco_7dof_arm-->
+    <param name="/kteach/arm_name" type="string" value="jaco_arm" unless="$(optenv VECTOR_HAS_KINOVA_7DOF_ARM false)"/>
+    <param name="/kteach/arm_name" type="string" value="jaco_7dof_arm" if="$(optenv VECTOR_HAS_KINOVA_7DOF_ARM false)"/>
 
     <!-- Start the basic kinesthetic interaction server -->
     <node name="basic_kinesthetic_interact" pkg="hlpr_kinesthetic_interaction" type="basic_kinesthetic_interaction.py" respawn="false" output="screen" >
