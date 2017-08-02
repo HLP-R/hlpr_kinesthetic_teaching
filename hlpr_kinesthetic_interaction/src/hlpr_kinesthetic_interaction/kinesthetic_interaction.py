@@ -57,8 +57,12 @@ class KinestheticInteraction:
     # TODO: REMOVE THIS AND PUT SOMEONE GLOBAL?
     RIGHT = 0
     LEFT = 1
+    FT_CONTROL_PARAM = "~ft_control_type" # For some reason ~ is required for even parent node name
+    TORQUE_MODE = "torque"
+    FORCE_MODE = "force"
+    DEFAULT_FT_TYPE=TORQUE_MODE
 
-    def __init__(self, verbose = True, is7DOF = False):
+    def __init__(self, verbose = True):
 
         # Get topic that we should be listening to for speech commands
         self.sub_topic = rospy.get_param(SpeechListener.COMMAND_TOPIC_PARAM, None)
@@ -89,10 +93,14 @@ class KinestheticInteraction:
         # Create a service for kinesthetic mode
         self.k_service = rospy.Service('kinesthetic_interaction', KinestheticInteract, self.toggleKMode)
 
+        # Get mode we want to control in
+        self.FT_mode = rospy.get_param(KinestheticInteraction.FT_CONTROL_PARAM, KinestheticInteraction.DEFAULT_FT_TYPE)
+        rospy.loginfo("Initial kinethestic control mode is: %s" % self.FT_mode)
+
         # Get access to the gravity compensation service and gripper
         # WARN: You MUST have set the arm_class variable in the class that
         # extends this
-        self.arm = self.arm_class(is7DOF)
+        self.arm = self.arm_class()
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
@@ -176,7 +184,11 @@ class KinestheticInteraction:
         self.apply_hand_action(self.last_command, KinestheticInteraction.LEFT)
 
     def _start_gc(self):
-        response = self.arm.gravity_comp(True)
+        # Get mode we want to control in - check before doing it again
+        # Only call this at START to avoid condition where we change and try to end a different mode
+        self.FT_mode = rospy.get_param(KinestheticInteraction.FT_CONTROL_PARAM, KinestheticInteraction.DEFAULT_FT_TYPE)
+        rospy.loginfo("Using kinethestic control mode: %s" % self.FT_mode)
+        response = self.arm.gravity_comp(True, self.FT_mode)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
             if self.verbose:
@@ -185,7 +197,7 @@ class KinestheticInteraction:
             rospy.logerr("Gravity compensation is not active.")
 
     def _end_gc(self):
-        response = self.arm.gravity_comp(False)
+        response = self.arm.gravity_comp(False, self.FT_mode)
         if response:
             self.apply_arm_action(self.last_command, KinestheticInteraction.RIGHT)
             if self.verbose:

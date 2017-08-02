@@ -49,9 +49,13 @@ class BasicKinestheticInteraction(KinestheticInteraction):
     OK = "OK"
     ERROR_WRITE = "Did not write"
     ERROR_START = "Did not start"
-    ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?" 
+    ERROR_DEMO = "Demonstration not ready. Did the demo server finish loading?"
+    ARM_PARAM = "/kteach/arm_name" # Note: this needs to be global!
+    JACO_6DOF = "jaco_arm"
+    JACO_7DOF = "jaco_7dof_arm"
+    DEFAULT_ARM = JACO_6DOF
 
-    def __init__(self, spin=True, node_name=None, arm_class=Arm, verbose=True, is7DOF=False):
+    def __init__(self, spin=True, node_name=None, arm_class=Arm, verbose=True):
 
         if(node_name):
             self.node_name = node_name
@@ -61,10 +65,25 @@ class BasicKinestheticInteraction(KinestheticInteraction):
         # Initialize the node
         rospy.init_node(self.node_name, anonymous=False) # only one at a time
 
-        # Initialize the arm
+        # Get the name of the arm to import
+        self.arm_name = rospy.get_param(BasicKinestheticInteraction.ARM_PARAM, self.DEFAULT_ARM)
+
+        if self.arm_name == self.JACO_6DOF:
+            rospy.loginfo("Using jaco_arm gravity comp calls")
+        elif self.arm_name == self.JACO_7DOF:
+
+            # Import the new arm class and set the arm class
+            from hlpr_kinesthetic_interaction.jaco_7dof_arm import Arm
+            arm_class=Arm
+            rospy.loginfo("Using jaco_7dof_arm gravity comp calls")
+        else:
+            rospy.logerr("Using known arm name: %s" % self.arm_name)
+
+        # Initialize the arm. It will pull default imported Arm or what is passed in
+        rospy.loginfo("Using arm name: %s" % self.arm_name)
         self.arm_class = arm_class
 
-        super(BasicKinestheticInteraction, self).__init__(verbose=verbose, is7DOF=is7DOF)
+        super(BasicKinestheticInteraction, self).__init__(verbose=verbose)
 
         # Initialize demonstration
         self.demo = None
