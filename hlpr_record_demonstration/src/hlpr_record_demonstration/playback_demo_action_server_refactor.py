@@ -457,6 +457,10 @@ class PlaybackKFDemoAction(object):
         if stored_obj.gripper_val is not None:
             pos = stored_obj.gripper_val[0]
             if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:
+
+                # Change KF
+                self._kf_helper(increment=True)
+
                 # Check if gripper position is open or closed
                 if pos < self.GRIPPER_OPEN_THRESH:
                     self.gripper.close()
