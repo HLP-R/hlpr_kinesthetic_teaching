@@ -51,6 +51,8 @@ from sensor_msgs.msg import JointState
 from control_msgs.msg import FollowJointTrajectoryGoal
 from std_msgs.msg import Bool
 from data_logger_bag.msg import LogControl
+from hlpr_record_demonstration.kf_tracker import KFTracker
+from hlpr_record_demonstration.srv import ChangeKFRequest, ChangeKF
 
 class PlaybackKFDemoAction(object):
 
@@ -80,6 +82,12 @@ class PlaybackKFDemoAction(object):
         self._pre_plan = rospy.get_param('~pre_plan', False)
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
         self.joint_state_topic = rospy.get_param('~joint_state_topic', '/joint_states')
+
+        # Setup KF Tracker
+        rospy.logwarn("Waiting for KF tracker service")
+        rospy.wait_for_service(KFTracker.SERVICE_NAME)
+        self.kf_tracker = rospy.ServiceProxy(KFTracker.SERVICE_NAME, ChangeKF)
+        rospy.logwarn("KF tracker service loaded")
 
         # Subscribe to the current gripper status
         rospy.Subscriber(self.gripper_status_topic, GripperStat, self._gripper_update, queue_size=1)
@@ -438,6 +446,7 @@ class PlaybackKFDemoAction(object):
             rospy.logerror("No plan found")
         else:
             rospy.loginfo("Executing Keyframe: %d" % keyframe_count)
+            self._kf_helper(num=keyframe_count)
             traj_goal = FollowJointTrajectoryGoal()
             traj_goal.trajectory = plan.joint_trajectory
             self.manipulator.arm.smooth_joint_trajectory_client.send_goal(traj_goal)
@@ -458,6 +467,20 @@ class PlaybackKFDemoAction(object):
                 #self.gripper.set_pos(pos)
                 rospy.sleep(self.GRIPPER_SLEEP_TIME) # Let gripper open/close
 
+    def _kf_helper(self, num=0, increment=False, decrement=False):
+        # Initialize and check what kind of change we want
+        req = ChangeKFRequest()
+        if increment:
+            req.increment = True
+        elif decrement:
+            req.decrement = True
+        else:
+            req.kf_num = num
+
+        # Send off
+        resp = self.kf_tracker(req)
+        if not resp.response:
+            rospy.logwarn("Error occurred when setting current KF number")
 
     def _save_pkl(self, path_name, data):
         '''
