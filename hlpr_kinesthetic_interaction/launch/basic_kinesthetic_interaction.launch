@@ -6,6 +6,7 @@
     <arg name="data_folder_loc" default="~/"/>
     <arg name="data_folder_name" default="data"/>
     <arg name="data_prefix" default="demo"/>
+    <arg name="ft_type" default="torque"/>
 
     <!-- Start the demo recording and eef publisher -->
     <include file="$(find hlpr_record_demonstration)/launch/start_record_services.launch">
@@ -18,6 +19,7 @@
         <arg name="data_folder_loc" value="$(arg data_folder_loc)"/>
         <arg name="data_folder_name" value="$(arg data_folder_name)"/>
         <arg name="data_prefix" value="$(arg data_prefix)"/>
+        <arg name="ft_type" value="$(arg ft_type)"/>
     </include> 
 
 </launch>

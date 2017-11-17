@@ -3,7 +3,7 @@
 import rospy
 from hlpr_manipulation_utils.manipulator import Gripper
 from wpi_jaco_msgs.srv import GravComp
-from kinova_msgs.srv import Start, Stop
+from hlpr_kinesthetic_interaction.kinesthetic_interaction import KinestheticInteraction
 
 """
 jaco_arm.py
@@ -15,29 +15,20 @@ can use kinesthetic_interaction
 class Arm():
 
     GRAVITY_COMP_SERVICE = "/jaco_arm/grav_comp" 
-    ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/start_gravity_comp"
-    DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/stop_gravity_comp"
 
-    def __init__(self, is7DOF = False):
+    def __init__(self):
         # Setup gravity compensation
         rospy.logwarn("Waiting for gravity compensation service")
-        if (is7DOF):
-            rospy.wait_for_service(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE)
-            rospy.wait_for_service(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE)
-            self.enableGravComp = rospy.ServiceProxy(Arm.ENABLE_7DOF_GRAVITY_COMP_SERVICE, Start)
-            self.disableGravComp = rospy.ServiceProxy(Arm.DISABLE_7DOF_GRAVITY_COMP_SERVICE, Stop)
-            self.gravity_comp = self.setGravityComp
-        else:
-            rospy.wait_for_service(Arm.GRAVITY_COMP_SERVICE)
-            self.gravity_comp = rospy.ServiceProxy(Arm.GRAVITY_COMP_SERVICE, GravComp)
+        rospy.wait_for_service(Arm.GRAVITY_COMP_SERVICE)
+        self.toggle_gravity_comp = rospy.ServiceProxy(Arm.GRAVITY_COMP_SERVICE, GravComp)
         rospy.logwarn("Gravity compenstation service loaded")
 
         # Initialize the gripper
         self.gripper = Gripper()
 
-    def setGravityComp(self, toggle):
-        if toggle:
-            return self.enableGravComp()
+    def gravity_comp(self, toggle, ft_mode):
+        if ft_mode == KinestheticInteraction.TORQUE_MODE:
+            return self.toggle_gravity_comp(toggle)
         else:
-            return self.disableGravComp()
- 
+            rospy.logwarn("There is currently no force mode API for 6dof. Nothing will happen. Please use torque mode")
+            return False
