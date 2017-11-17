@@ -104,7 +104,8 @@ class KinestheticInteraction:
 
         # Initialize callback for speech commands - do at the end to prevent unwanted behavior
         self._msg_type = eval(rospy.get_param(SpeechListener.COMMAND_TYPE, None))
-        rospy.Subscriber(self.sub_topic, self._msg_type, self._speechCB, queue_size=1) 
+        rospy.Subscriber(self.sub_topic, self._msg_type, self._speechCB, queue_size=1)
+        self.speech_keywords = rospy.get_param(SpeechListener.KEYWORDS_PARAM)
 
         # Commands used in this base class
         self.k_mode_commands = ["open_hand", "close_hand", "start_gc", "end_gc", "keyframe_start", "keyframe", "keyframe_end"]
@@ -136,13 +137,8 @@ class KinestheticInteraction:
 
     def _speechCB(self, msg):
 
-        # Pull the speech command
-        try:
-            response = self.speech_service(True)
-            self.last_command = response.speech_cmd
-        except rospy.ServiceException:
-            rospy.logerr("No last speech command")
-            self.last_command = None
+        # Get the command
+        self.last_command = SpeechListener._map_keyword_to_command(msg.keyphrase, self.speech_keywords.iteritems())
 
         if self.active:
             # Get the function from switcher dictionary
@@ -152,7 +148,9 @@ class KinestheticInteraction:
             func()
 
         else:
-            if self.last_command.lower() in self.k_mode_commands:
+            if self.last_command == None:
+                rospy.logwarn("No last command given")
+            elif self.last_command.lower() in self.k_mode_commands:
                 rospy.logwarn("Kinesthetic Mode is inactive currently")
 
     def _command_not_found(self):
