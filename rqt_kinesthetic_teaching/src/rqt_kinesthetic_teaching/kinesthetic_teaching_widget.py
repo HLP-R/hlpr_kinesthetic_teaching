@@ -106,6 +106,7 @@ class KinestheticTeachingWidget(QWidget):
         self.status.setText(text)
         self.previousStatusText = text
         threading.Timer(self.STATUS_DISPLAY_TIME, self._expireStatus).start()
+
     def _expireStatus(self):
         if self.status.text() == self.previousStatusText:
             self.status.setText("Ready.")
@@ -117,6 +118,7 @@ class KinestheticTeachingWidget(QWidget):
 
         self.demoLocation.setText(location)
         self.loadLocation()
+
     def browseForFolder(self):
         location = QFileDialog.getExistingDirectory(directory=os.path.dirname(self.demoLocation.text()))
         if len(location) == 0:
@@ -124,6 +126,7 @@ class KinestheticTeachingWidget(QWidget):
 
         self.demoLocation.setText(location)
         self.loadLocation()
+
     def loadLocation(self):
         self.startTrajectoryButton.setEnabled(False)
         self.startButton.setEnabled(False)
@@ -147,54 +150,56 @@ class KinestheticTeachingWidget(QWidget):
         self._showStatus("Parsing...")
         
         totalFrames = 0
-        for location in sorted(locations):
-            try:
-                self.keyframeBagInterface = KeyframeBagInterface()
-                parsedData = self.keyframeBagInterface.parse(location)
-                objectsInScene = self.keyframeBagInterface.parseContainedObjects(location)
-            except (rosbag.bag.ROSBagException, ParseException) as err:
-                self._showStatus(str(err))
-                rospy.logwarn("[%s] %s", location, str(err))
-                self.playbackTree.clear()
-                return
-            totalFrames += len(parsedData)
 
-            objectLabels = []
-            for item in objectsInScene:
-                label = item.label
-                if objectLabels.count(label) > 0:
-                    label = "{} #{}".format(label, objectLabels.count(label) + 1)
-                objectLabels.append(item.label)
+        if locations[0][-4:] == '.bag':
+            for location in sorted(locations):
+                try:
+                    self.keyframeBagInterface = KeyframeBagInterface()
+                    parsedData = self.keyframeBagInterface.parse(location)
+                    objectsInScene = self.keyframeBagInterface.parseContainedObjects(location)
+                except (rosbag.bag.ROSBagException, ParseException) as err:
+                    self._showStatus(str(err))
+                    rospy.logwarn("[%s] %s", location, str(err))
+                    self.playbackTree.clear()
+                    return
+                totalFrames += len(parsedData)
 
-                if len(locations) > 1:
-                    self.zeroMarker.addItem(u"{} → {}".format(label, os.path.basename(location)))
+                objectLabels = []
+                for item in objectsInScene:
+                    label = item.label
+                    if objectLabels.count(label) > 0:
+                        label = "{} #{}".format(label, objectLabels.count(label) + 1)
+                    objectLabels.append(item.label)
+
+                    if len(locations) > 1:
+                        self.zeroMarker.addItem(u"{} → {}".format(label, os.path.basename(location)))
+                    else:
+                        self.zeroMarker.addItem(label)
+
+                items = []
+                for i, keyframe in enumerate(parsedData):
+                    item = QTreeWidgetItem()
+                    title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
+                    item.setText(0, title)
+                    # Add children
+                    for topic in sorted(keyframe["data"]):
+                        data = keyframe["data"][topic]
+                        topicItem = QTreeWidgetItem()
+                        topicItem.setText(0, topic)
+                        for attribute in sorted(data):
+                            attributeValueItem = QTreeWidgetItem()
+                            attributeValueItem.setText(0, attribute)
+                            attributeValueItem.setText(1, str(data[attribute]))
+                            topicItem.addChild(attributeValueItem)
+                        item.addChild(topicItem)
+                    items.append(item)
+                if len(locations) == 1:
+                    self.playbackTree.addTopLevelItems(items)
                 else:
-                    self.zeroMarker.addItem(label)
-
-            items = []
-            for i, keyframe in enumerate(parsedData):
-                item = QTreeWidgetItem()
-                title = "(#{}) ".format(i) + time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(keyframe["time"]))
-                item.setText(0, title)
-                # Add children
-                for topic in sorted(keyframe["data"]):
-                    data = keyframe["data"][topic]
-                    topicItem = QTreeWidgetItem()
-                    topicItem.setText(0, topic)
-                    for attribute in sorted(data):
-                        attributeValueItem = QTreeWidgetItem()
-                        attributeValueItem.setText(0, attribute)
-                        attributeValueItem.setText(1, str(data[attribute]))
-                        topicItem.addChild(attributeValueItem)
-                    item.addChild(topicItem)
-                items.append(item)
-            if len(locations) == 1:
-                self.playbackTree.addTopLevelItems(items)
-            else:
-                item = QTreeWidgetItem()
-                item.setText(0, location)
-                item.addChildren(items)
-                self.playbackTree.addTopLevelItem(item)
+                    item = QTreeWidgetItem()
+                    item.setText(0, location)
+                    item.addChildren(items)
+                    self.playbackTree.addTopLevelItem(item)
         
         if len(locations) == 1:
             self.demoName.setText(os.path.basename(locations[0]))
