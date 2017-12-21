@@ -11,9 +11,13 @@ from hlpr_kinesthetic_interaction.srv import KinestheticInteract
 from hlpr_record_demonstration.msg import RecordKeyframeDemoAction
 from python_qt_binding import loadUi
 from python_qt_binding.QtCore import Qt, Signal, qWarning
-from python_qt_binding.QtGui import (QComboBox, QFileDialog, QGraphicsView,
-                                     QHeaderView, QIcon, QMessageBox,
-                                     QTreeWidgetItem, QWidget)
+#from python_qt_binding.QtGui import (QComboBox, QFileDialog, QGraphicsView,
+#                                     QHeaderView, QIcon, QMessageBox,
+#                                     QTreeWidgetItem, QWidget)
+from python_qt_binding.QtWidgets import (QComboBox, QFileDialog, QGraphicsView,
+                                         QHeaderView, QMessageBox, QTreeWidgetItem, 
+                                         QWidget)
+from python_qt_binding.QtGui import QIcon
 
 from keyframe_bag_interface import KeyframeBagInterface, ParseException
 from rqt_kinesthetic_interaction import (RQTKinestheticInteraction,
@@ -61,8 +65,8 @@ class KinestheticTeachingWidget(QWidget):
 
         # Set sizing options for tree widget headers
         self.playbackTree.header().setStretchLastSection(False)
-        self.playbackTree.header().setResizeMode(0, QHeaderView.Stretch)
-        self.playbackTree.header().setResizeMode(1, QHeaderView.ResizeToContents)
+        self.playbackTree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.playbackTree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
         self.zeroMarker.setInsertPolicy(QComboBox.InsertAlphabetically)
 
