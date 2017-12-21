@@ -41,6 +41,7 @@ as well as additional commands
 
 import roslib
 import rospy
+import time
 from abc import ABCMeta, abstractmethod
 
 from std_msgs.msg import String
@@ -165,12 +166,14 @@ class KinestheticInteraction:
         
     def _open_hand(self):
         self.arm.gripper.open()
+        time.sleep(1.0)
         if self.verbose:
             self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
 
     def _close_hand(self):
         self.arm.gripper.close()
+        time.sleep(1.0)
         if self.verbose:
             self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
