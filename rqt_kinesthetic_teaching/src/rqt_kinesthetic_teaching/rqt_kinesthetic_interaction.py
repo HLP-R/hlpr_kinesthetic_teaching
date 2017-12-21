@@ -2,7 +2,7 @@ import os
 import signal
 
 import rospy
-from hlpr_kinesthetic_interaction.jaco_arm import Arm
+from hlpr_kinesthetic_interaction.jaco_7dof_arm import Arm
 from hlpr_kinesthetic_interaction.kinesthetic_interaction import \
     KinestheticInteraction
 from hlpr_record_demonstration.demonstration import Demonstration
