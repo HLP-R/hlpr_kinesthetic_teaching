@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import rospy
-from hlpr_manipulation_utils.manipulator import Gripper
+#from hlpr_manipulation_utils.manipulator import Gripper
+from hlpr_manipulation_utils.manipulator import WeissGripper as Gripper
 from kinova_msgs.srv import Start, Stop
 from hlpr_kinesthetic_interaction.kinesthetic_interaction import KinestheticInteraction
 
