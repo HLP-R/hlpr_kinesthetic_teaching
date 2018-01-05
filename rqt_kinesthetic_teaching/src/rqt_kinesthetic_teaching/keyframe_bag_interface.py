@@ -68,7 +68,8 @@ class KeyframeBagInterface():
             parsed = []
 
             all_topics = bag.get_type_and_topic_info().topics.keys()
-            GRIPPER_TOPIC = "gripper/stat"
+            #GRIPPER_TOPIC = "gripper/stat"
+            GRIPPER_TOPIC = "wsg_50_driver/status"
             gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x]
 
             for topic, msg, time in bag.read_messages():
@@ -89,9 +90,13 @@ class KeyframeBagInterface():
 
                 if topic in gripper_topics:
                     # Gripper has different data
+                    #data["data"][topic] = dict(
+                    #    position = msg.position,
+                    #    requested_position = msg.requested_position
+                    #)
                     data["data"][topic] = dict(
-                        position = msg.position,
-                        requested_position = msg.requested_position
+                        position = msg.width,
+                        requested_position = msg.width
                     )
                 elif topic == "joint_states":
                     for i, name in enumerate(msg.name):
