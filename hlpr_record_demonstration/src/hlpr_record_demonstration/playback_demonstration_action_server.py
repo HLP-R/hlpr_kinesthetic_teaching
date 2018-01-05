@@ -45,7 +45,9 @@ import tf2_geometry_msgs
 import tf2_ros
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
 from hlpr_manipulation_utils.arm_moveit import *
-from hlpr_manipulation_utils.manipulator import *
+#from hlpr_manipulation_utils.manipulator import *
+from hlpr_manipulation_utils.manipulator import Manipulator
+from hlpr_manipulation_utils.manipulator import WeissGripper as Gripper
 from hlpr_record_demonstration.msg import (PlaybackKeyframeDemoAction,
                                            PlaybackKeyframeDemoFeedback,
                                            PlaybackKeyframeDemoGoal,
@@ -110,7 +112,8 @@ class PlaybackKFDemoAction(object):
         self.gripper_pos[gripper_topic] = pos
 
         # Get right or left
-        gripper_side = gripper_topic.split('/')[2].split('_')[0]
+        #gripper_side = gripper_topic.split('/')[2].split('_')[0]
+        gripper_side = 'right'
 
         # Check the gripper state initially and set
         self.gripper[gripper_side].set_pos(pos)
@@ -151,7 +154,8 @@ class PlaybackKFDemoAction(object):
             # Check if we have a gripper topic. If so add it to playback 
             all_topics = self.bag.get_type_and_topic_info().topics.keys()
             playback_topics = [goal.target_topic]
-            GRIPPER_TOPIC = 'gripper/stat'
+            #GRIPPER_TOPIC = 'gripper/stat'
+            GRIPPER_TOPIC = 'wsg_50_driver/status'
             gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
             playback_topics.extend(gripper_topics)
             OBJECT_LOCATION_TOPIC = "object_location"
@@ -177,7 +181,8 @@ class PlaybackKFDemoAction(object):
                     gripper_msgs[gripper_topic] = all_messages[gripper_topic]
 
                     # Actually set the gripper value
-                    pos = gripper_msgs[gripper_topic][0].requested_position
+                    #pos = gripper_msgs[gripper_topic][0].requested_position
+                    pos = gripper_msgs[gripper_topic][0].width
                     self.gripper_helper(gripper_topic, pos)
 
                 for msg_count in xrange(len(playback_list)):
