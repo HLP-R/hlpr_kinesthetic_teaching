@@ -5,8 +5,10 @@ msg_type: sensor_msgs/JointState
 topic: eef_pose
 msg_type: geometry_msgs/Pose
 ---
-topic: /vector/right_gripper/stat
-msg_type: vector_msgs/GripperStat
+#topic: /vector/right_gripper/stat
+#msg_type: vector_msgs/GripperStat
+topic: /wsg_50_driver/status
+msg_type: wsg_50_common/Status
 ---
 topic: object_location
 msg_type: object_location/Objects
