@@ -72,8 +72,8 @@ class PlaybackKFDemoAction(object):
         self.gripper = Gripper(prefix='right')
 
         # Load some thresholds
-        self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 50)
-        self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.1) # total distance all joints have to move at minimum
+        self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 150)
+        self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.01) # total distance all joints have to move at minimum
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
         self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.06)
         self.logger_topic = rospy.get_param("~logger_topic", 'data_logger_flag')
@@ -143,7 +143,7 @@ class PlaybackKFDemoAction(object):
 
         # Setup data logging
         log_control_msg = LogControl()
-        log_control_msg.runName = os.path.split(os.path.splitext(self.playback_file)[0])[-1]
+        #log_control_msg.runName = os.path.split(os.path.splitext(self.playback_file)[0])[-1]
         log_control_msg.playback = True
         self.log_control_pub.publish(log_control_msg)
     
