@@ -24,6 +24,10 @@ from rqt_kinesthetic_interaction import (RQTKinestheticInteraction,
                                          TimeoutException)
 
 
+KEYFRAME_RECORDED_SPEECH = 'Ok'
+START_SPEECH = 'Started'
+END_SPEECH = 'Done'
+
 class KinestheticTeachingWidget(QWidget):
     """
     Widget for use for kinesthetic teaching demos
@@ -37,6 +41,7 @@ class KinestheticTeachingWidget(QWidget):
         ui_file = os.path.join(rospkg.RosPack().get_path('rqt_kinesthetic_teaching'), 'resource', 'KinestheticTeaching.ui')
         loadUi(ui_file, self)
 
+        self.vis = True
         self.setObjectName('KTeachingUi')
         self.setWindowTitle(self.windowTitle() + (' (%d)' % context.serial_number()))
         # Add widget to the user interface
@@ -62,6 +67,7 @@ class KinestheticTeachingWidget(QWidget):
         self.playDemoButton.clicked[bool].connect(self.playDemo)
         self.enableKIBox.stateChanged.connect(self.enableKI)
         self.locateObjectsBox.stateChanged.connect(self.locateObjectsChanged)
+        self.vizBox.stateChanged.connect(self.vizBoxChanged)
 
         # Set sizing options for tree widget headers
         self.playbackTree.header().setStretchLastSection(False)
@@ -256,6 +262,9 @@ class KinestheticTeachingWidget(QWidget):
         if self.playDemoButton.isEnabled():
             self.zeroMarker.setEnabled(self.locateObjectsBox.isChecked())
     
+    def vizBoxChanged(self):
+        self.vis = self.vizBox.isChecked()
+    
     def _generalStartActions(self):
         self.startTrajectoryButton.setEnabled(False)
         self.startButton.setEnabled(False)
@@ -296,6 +305,7 @@ class KinestheticTeachingWidget(QWidget):
             self.playbackTree.clear()
             self._keyframeRecorded()
             self._showStatus("Keyframe recording started.")
+            self.kinesthetic_interaction.speech.say(START_SPEECH)  
     
     def addKeyframe(self):
         self.kinesthetic_interaction.demonstration_keyframe(None)
@@ -305,6 +315,7 @@ class KinestheticTeachingWidget(QWidget):
         else:
             self._keyframeRecorded()
             self._showStatus("Keyframe recorded.")
+            self.kinesthetic_interaction.speech.say(KEYFRAME_RECORDED_SPEECH) 
 
     def openHand(self):
         self.kinesthetic_interaction._open_hand()
@@ -329,6 +340,7 @@ class KinestheticTeachingWidget(QWidget):
                 self._showStatus("Recording saved. Please open file manually.")
                 rospy.logwarn("Recording saved but cannot be opened automatically because the end keyframe was written from a different thread. Please open the .bag file manually.")
                 rospy.loginfo("Recording saved to {}".format(self.kinesthetic_interaction.demonstration.filename))
+            self.kinesthetic_interaction.speech.say(END_SPEECH) 
 
     def _playDemoHandler(self, signum, frame):
         msg = "Could not load playback keyframe demo server. Run `roslaunch hlpr_record_demonstration start_playback_services.launch`."
@@ -366,6 +378,6 @@ class KinestheticTeachingWidget(QWidget):
         if zeroMarker is not None and os.path.isdir(self.demoLocation.text()):
             zeroMarker = zeroMarker.split(u" → ")[0]
 
-        self.keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
+        self.keyframeBagInterface.play(location, zeroMarker, self.playDemoDone, self.vis)
     def playDemoDone(self, feedback):
         print(feedback)
