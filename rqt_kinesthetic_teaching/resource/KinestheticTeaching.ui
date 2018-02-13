@@ -433,6 +433,19 @@
       </widget>
      </item>
      <item alignment="Qt::AlignHCenter">
+      <widget class="QCheckBox" name="vizBox">
+       <property name="toolTip">
+        <string>Enable or disable visualization during planning</string>
+       </property>
+       <property name="text">
+        <string>Visualize</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item alignment="Qt::AlignHCenter">
       <widget class="QCheckBox" name="enableKIBox">
        <property name="maximumSize">
         <size>

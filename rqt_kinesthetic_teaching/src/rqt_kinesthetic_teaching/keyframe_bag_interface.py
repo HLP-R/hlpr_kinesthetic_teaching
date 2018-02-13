@@ -140,7 +140,7 @@ class KeyframeBagInterface():
         self.client = actionlib.SimpleActionClient("playback_keyframe_demo", PlaybackKeyframeDemoAction)
         self.client.wait_for_server()
 
-    def play(self, file, zeroMarker, cb):
+    def play(self, file, zeroMarker, cb, vis=True):
         """
         Plays the keyframes from a bag file
         Calls do_playback_keyframe_demo() in playback_demonstration_action_server.py
@@ -158,9 +158,11 @@ class KeyframeBagInterface():
             goal.target_topic = "joint_states"
             goal.eef_only = False
             goal.zero_marker = ""
+            goal.vis_only = vis
         else:
             goal.target_topic = "eef_pose"
             goal.eef_only = True
             goal.zero_marker = zeroMarker
+            goal.vis_only = vis
 
         self.client.send_goal(goal, feedback_cb=cb)
