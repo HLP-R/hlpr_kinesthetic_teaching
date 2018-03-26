@@ -155,6 +155,7 @@ class Demonstration():
     
     """Write a keyframe"""
     def write_keyframe(self):
+        print 'write_keyframe'
         if self.recording:
             self.record_pub.publish(RecordKFDemoAction.KF)
         return self.recording

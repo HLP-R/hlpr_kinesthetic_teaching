@@ -2,7 +2,7 @@ import os
 import signal
 
 import rospy
-from hlpr_kinesthetic_interaction.jaco_arm import Arm
+from hlpr_kinesthetic_interaction.jaco_7dof_arm import Arm
 from hlpr_kinesthetic_interaction.kinesthetic_interaction import \
     KinestheticInteraction
 from hlpr_record_demonstration.demonstration import Demonstration
@@ -47,6 +47,16 @@ class RQTKinestheticInteraction(KinestheticInteraction):
             timestamp=timestamp
         )
         return self.demonstration.filename
+
+    '''
+    def _open_hand(self):
+        super(RQTKinestheticInteraction, self)._open_hand()
+        self.demonstration_keyframe(None)
+
+    def _close_hand(self):
+        super(RQTKinestheticInteraction, self)._close_hand()
+        self.demonstration_keyframe(None)
+    '''
 
     # Override abstract methods
     def apply_hand_action(self, cmd, hand):

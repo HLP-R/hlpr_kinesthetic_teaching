@@ -63,17 +63,16 @@ class PlaybackKFDemoAction(object):
 
         # Start the server
         self.server.start()
-
         # Load the drivers for the arm and gripper
-        self.arm_planner = ArmMoveIt()
+        self.arm_planner = ArmMoveIt('right')
         self.manipulator = Manipulator()
         self.gripper = Gripper(prefix='right')
-
+        
         # Load some thresholds
         self.KEYFRAME_THRESHOLD = rospy.get_param("~keyframe_threshold", 50)
         self.JOINT_THRESHOLD = rospy.get_param("~joint_threshold", 0.1) # total distance all joints have to move at minimum
         self.GRIPPER_MSG_TYPE = rospy.get_param("~gripper_msg_type", 'vector_msgs/GripperStat')
-        self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.06)
+        self.GRIPPER_OPEN_THRESH = rospy.get_param("~gripper_open_thresh", 0.07)
         self.logger_topic = rospy.get_param("~logger_topic", 'data_logger_flag')
         self.logger_control_topic = rospy.get_param("~logger_control_msg_topic", 'C6_Task_Description')
 
@@ -81,6 +80,7 @@ class PlaybackKFDemoAction(object):
         self.gripper_status_topic = rospy.get_param('~gripper_topic', '/vector/right_gripper/stat')
         self.joint_state_topic = rospy.get_param('~joint_state_topic', '/joint_states')
 
+        
         # Subscribe to the current gripper status
         rospy.Subscriber(self.gripper_status_topic, GripperStat, self._gripper_update, queue_size=1)
 
@@ -102,7 +102,8 @@ class PlaybackKFDemoAction(object):
         # Setup publisher for data logginer
         self.data_log_pub = rospy.Publisher(self.logger_topic, Bool, queue_size=5)
         self.log_control_pub = rospy.Publisher(self.logger_control_topic, LogControl, queue_size=5)
-
+        
+		
         # Store the playback file
         self.playback_file = None
 
@@ -111,6 +112,7 @@ class PlaybackKFDemoAction(object):
 
         # Store the current joint states
         self.current_joint_state = dict()
+       
 
     def _gripper_update(self, msg):
         self.gripper_pos = msg.position
@@ -276,16 +278,22 @@ class PlaybackKFDemoAction(object):
             # If gripper topic exists - set
             if len(gripper_topic) != 0:
                 gripper_val = msg_store[gripper_topic][i][0].position
+                print 'gripper_val', gripper_val
                 plan_obj.set_gripper_val((gripper_val,msg_store[gripper_topic][i][1]))
            
             data_store[self.PLAN_OBJ_KEY].append(plan_obj) 
  
         # Filter the plan objects and remove objects with targets too close to the same position
-        data_store[self.PLAN_OBJ_KEY] = self._check_keyframes(data_store[self.PLAN_OBJ_KEY], joint_flag)
+        #data_store[self.PLAN_OBJ_KEY] = self._check_keyframes(data_store[self.PLAN_OBJ_KEY], joint_flag)
         total_keyframes = len(data_store[self.PLAN_OBJ_KEY])
+        print 'data_store', data_store['playback_objects'][0]
 
         # Actually get the plans from the moveit API
+        joint_names = ['right_joint_'+str(i) for i in range(1,8)]
         plans = self.arm_planner.plan_targetInputWaypoint([x.target for x in data_store[self.PLAN_OBJ_KEY]], joint_flag, merged=False, current_joints = self.current_joint_state)
+        print 'plans'
+        for idx in range(len(plans)):
+            print ('plans[%s]' % idx), plans[idx]
 
         # Check if we were able to create valid plan segments
         if plans is None:
@@ -445,6 +453,7 @@ class PlaybackKFDemoAction(object):
             return self.manipulator.arm.smooth_joint_trajectory_client.get_result()
 
     def _execute_gripper(self, stored_obj):
+        print '_execute_gripper', stored_obj.gripper_val
         if stored_obj.gripper_val is not None:
             pos = stored_obj.gripper_val[0]
             if abs(pos - self.gripper_pos) > self.GRIPPER_THRESHOLD:

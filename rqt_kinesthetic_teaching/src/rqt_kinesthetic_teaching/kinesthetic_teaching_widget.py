@@ -357,6 +357,6 @@ class KinestheticTeachingWidget(QWidget):
         if zeroMarker is not None and os.path.isdir(self.demoLocation.text()):
             zeroMarker = zeroMarker.split(u" → ")[0]
 
-        self.keyframeBagInterface.play(location, zeroMarker, self.playDemoDone)
+        self.keyframeBagInterface.play(location, zeroMarker, self.playDemoDone("Demo done"))
     def playDemoDone(self, feedback):
         print(feedback)

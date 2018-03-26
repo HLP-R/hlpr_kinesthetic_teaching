@@ -41,6 +41,7 @@ as well as additional commands
 
 import roslib
 import rospy
+import time
 from abc import ABCMeta, abstractmethod
 
 from std_msgs.msg import String
@@ -85,7 +86,7 @@ class KinestheticInteraction:
         self.last_command = None
 
         # Set flag for whether we're in kinesthetic mode
-        self.active = False # Default is false
+        self.active = True # Default is false
 
         # Set flag for whether to speak responses
         self.verbose = verbose
@@ -135,7 +136,7 @@ class KinestheticInteraction:
         return True
 
     def _speechCB(self, msg):
-
+        print 'speech', self.active
         # Pull the speech command
         try:
             response = self.speech_service(True)
@@ -152,8 +153,8 @@ class KinestheticInteraction:
             func()
 
         else:
-            if self.last_command.lower() in self.k_mode_commands:
-                rospy.logwarn("Kinesthetic Mode is inactive currently")
+            #if self.last_command.lower() in self.k_mode_commands:
+            rospy.logwarn("Kinesthetic Mode is inactive currently")
 
     def _command_not_found(self):
         if self.verbose:
@@ -167,12 +168,14 @@ class KinestheticInteraction:
         
     def _open_hand(self):
         self.arm.gripper.open()
+        time.sleep(3.0)
         if self.verbose:
             self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)
-
+        
     def _close_hand(self):
         self.arm.gripper.close()
+        time.sleep(3.0)
         if self.verbose:
             self.speech.say("OK")
         self.apply_hand_action(self.last_command, KinestheticInteraction.RIGHT)

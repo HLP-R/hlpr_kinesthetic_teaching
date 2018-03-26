@@ -153,6 +153,7 @@ class PlaybackKFDemoAction(object):
             playback_topics = [goal.target_topic]
             GRIPPER_TOPIC = 'gripper/stat'
             gripper_topics = [x for x in all_topics if GRIPPER_TOPIC in x] 
+            print gripper_topics
             playback_topics.extend(gripper_topics)
             OBJECT_LOCATION_TOPIC = "object_location"
             playback_topics.append(OBJECT_LOCATION_TOPIC)
@@ -263,7 +264,7 @@ class PlaybackKFDemoAction(object):
                         self.sendPlan(plan)
                         keyframe_count+=1
 
-                    # Execute Gripper if needed
+                    # Execute Gripper if needed ?????
                     for gripper_topic in gripper_topics:
                         pos = gripper_msgs[gripper_topic][msg_count].requested_position
                         if abs(pos - self.gripper_pos[gripper_topic]) > self.GRIPPER_THRESHOLD:

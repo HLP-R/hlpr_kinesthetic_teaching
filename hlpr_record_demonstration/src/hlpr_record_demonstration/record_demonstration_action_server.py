@@ -134,6 +134,7 @@ class RecordKFDemoAction(object):
     if self.recording is True:
       
       if msg.data == RecordKFDemoAction.KF: #rec another keyframe
+        rospy.loginfo('keyframe_callback')
         self.write_demo_data()
         rospy.loginfo('Recording keyframe: %d', self.keyframe_count)
       elif msg.data == RecordKFDemoAction.DEMO_END: #end message
@@ -148,6 +149,7 @@ class RecordKFDemoAction(object):
   # Write current state to the open bag
   def write_demo_data(self):    
     # Cycle through the different messages stored away
+    print self.msg_store
     for topic in self.msg_store:
       self.bag.write(topic, self.msg_store[topic])
     self.keyframe_count += 1

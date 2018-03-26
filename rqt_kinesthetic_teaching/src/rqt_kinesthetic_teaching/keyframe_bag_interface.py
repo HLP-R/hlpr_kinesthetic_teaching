@@ -60,6 +60,7 @@ class KeyframeBagInterface():
         Parses the keyframes from a bag file
         Adapted from do_playback_keyframe_demo() in playback_demonstration_action_server.py
         """
+        print 'parse'
         if not os.path.isfile(file):
             raise ParseException("File does not exist")
 
@@ -93,6 +94,7 @@ class KeyframeBagInterface():
                         position = msg.position,
                         requested_position = msg.requested_position
                     )
+                    print data["data"][topic]
                 elif topic == "joint_states":
                     for i, name in enumerate(msg.name):
                         data["data"]["/{}/{}".format(topic, name)] = dict(

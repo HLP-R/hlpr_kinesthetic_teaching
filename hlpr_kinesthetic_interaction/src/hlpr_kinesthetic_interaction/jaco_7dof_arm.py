@@ -14,10 +14,14 @@ can use kinesthetic_interaction
 
 class Arm():
 
-    ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/start_gravity_comp"
-    DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/stop_gravity_comp"
-    ENABLE_7DOF_FORCE_SERVICE = "/j2s7s300_driver/in/start_force_control"
-    DISABLE_7DOF_FORCE_SERVICE = "/j2s7s300_driver/in/stop_force_control"
+    #ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/start_gravity_comp"
+    #DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/j2s7s300_driver/in/stop_gravity_comp"
+    #ENABLE_7DOF_FORCE_SERVICE = "/j2s7s300_driver/in/start_force_control"
+    #DISABLE_7DOF_FORCE_SERVICE = "/j2s7s300_driver/in/stop_force_control"
+    ENABLE_7DOF_GRAVITY_COMP_SERVICE = "/right_arm_driver/in/start_gravity_comp"
+    DISABLE_7DOF_GRAVITY_COMP_SERVICE = "/right_arm_driver/in/stop_gravity_comp"
+    ENABLE_7DOF_FORCE_SERVICE = "/right_arm_driver/in/start_force_control"
+    DISABLE_7DOF_FORCE_SERVICE = "/right_arm_driver/in/stop_force_control"
 
     def __init__(self):
         # Setup gravity compensation
