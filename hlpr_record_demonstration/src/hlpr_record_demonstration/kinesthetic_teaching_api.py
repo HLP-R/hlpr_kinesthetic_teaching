@@ -39,10 +39,11 @@ import rosbag
 import rospkg
 
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
+from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 
 #segments are a double-linked list
 class KTSegment(object):
-    def __init__(self, target, gripper_open, prev_seg = None, is_traj = False,
+    def __init__(self, planner, target, gripper_open, prev_seg = None, is_traj = False,
                  is_joints = True):
         self.is_traj = is_traj
         self.prev_seg = prev_seg
@@ -53,7 +54,7 @@ class KTSegment(object):
         self.points = None
         self.is_traj = False
         self.is_joints = is_joints
-        self.planner = ArmMoveIt()
+        self.planner = planner
         
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
@@ -87,7 +88,7 @@ class KTSegment(object):
             rospy.logerr("Planning not yet implemented for trajectory segments")
             return None
 
-        if self.prev is not None:
+        if self.prev_seg is not None:
             start = self.prev_seg.get_end_joints()
         else:
             start = None
@@ -101,14 +102,27 @@ class KTSegment(object):
         self.next_seg = segment
         segment.prev_seg = self
 
-    #def __repr__(self):
-    #    return
+    def __repr__(self):
+        def abbr(joints):
+            s = sorted(joints.items(), key=lambda j:j[0])
+            s = map(lambda p: round(p[1],3),s)
+            return s
+        
+        if self.prev_seg is not None:
+            start = abbr(self.prev_seg.get_end_joints())
+        else:
+            start = "start"
+
+        end = abbr(self.get_end_joints())    
+
+        r = "<KTSegment from {} to {}>".format(start, end)
+        return r
 
 
 class KTPlayback(object):
-    MIN_DELTA_T = rospy.Duration(1.0)
-    JOINT_TOPIC = "/joint_states"
-    EEF_TOPIC = "/eef_pose"
+    MIN_DELTA_T = rospy.Duration(0.1)
+    JOINT_TOPIC = "joint_states"
+    EEF_TOPIC = "eef_pose"
     GRIPPER_TOPIC = "/vector/right_gripper/stat"
     GRIPPER_OPEN_THRESH = 0.06
     JOINT_MOVE_THRESH = 0.01
@@ -119,24 +133,26 @@ class KTPlayback(object):
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
         self.is_joints=is_joints #TODO: allow mixing EEF-only and joint keyframes
-
+        self.first=None
        
     def load_bagfile(self, bagfile):
-        bag = rosbag.Bag(bagfile, "r")
+        bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
         msgs = []
-        for topic, msg, time in bag.read_msgs():
+        for topic, msg, time in bag.read_messages():
             msgs.append((topic, msg, time))
 
         frames = []
 
         time = msgs[0][2] #(topic, msg, time)
+        i=0
         while i<len(msgs):
             frame = []
-            while msgs[i][2]==time and i<len(msgs):
+            while i<len(msgs) and msgs[i][2]==time:
                 frame.append(msgs[i])
                 i+=1
+            if i<len(msgs):
+                time = msgs[i][2]
             frames.append(frame)
-                    
         self.load_frames(frames)
             
     def load_pkl(self, pkl_file):
@@ -144,18 +160,22 @@ class KTPlayback(object):
             self.segments = cPickle.load(filename)
             
     def load_frames(self, frames):
-        frames.sort(key=lambda f:f[2])
+        if len(frames)==0:
+            rospy.logwarn("No frames to load! Clearing segments...")
+        
+        frames.sort(key=lambda f:f[0][2])
         
         #subsample trajectory frames
         self.segments = []
         
         time = None
-        last_target = None
         last_segment = None
         for frame in frames:
             #subsample trajectory frames
-            new_time = frame[2]
-            if time is not None and new_time < time+rospy.Duration(MIN_DELTA_T):
+            new_time = frame[0][2]
+            if time is not None and new_time < time+self.MIN_DELTA_T:
+                dt = (new_time-time).to_sec()
+                rospy.logwarn("Skipping frame at time {}. Only {}s since last frame".format(new_time,dt))
                 continue
             else:
                 time = new_time
@@ -166,9 +186,13 @@ class KTPlayback(object):
                 if topic in step:
                     rospy.logwarn("Multiple messages at time {} for topic {}".format(time, topic))
                 else:
-                    step[topic]=msg
+                    step[topic]=msg[1]
 
             if self.is_joints:
+                if not self.JOINT_TOPIC in step:
+                    rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, time))
+                    continue
+                
                 joint_msg = step[self.JOINT_TOPIC]
                 arm_joints = self.planner.group[0].get_active_joints()
                 target = dict([(joint,
@@ -182,32 +206,30 @@ class KTPlayback(object):
                 grip_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
 
             saved = False
-            if last_target is None:
-                new_segment = KTSegment(target, grip_open,
-                                        last_segment, is_traj = False,
-                                        is_joints = self.is_joints)
+            new_segment=KTSegment(self.planner, target, grip_open,
+                                  last_segment, is_traj = False,
+                                  is_joints = self.is_joints)
+            
+            if last_segment is None:
                 self.segments.append(new_segment)
                 last_segment = new_segment
                 saved = True
             else:
-                if self.is_joints:
-                    dist = 0
-                    for joint in target: #changed to max over joints
-                        d1 = abs(last_target[joint]-target[joint])
-                        if  d1 > dist:
-                            dist = d1
-                if not self.is_joints or dist > self.JOINT_MOVE_THRESH:
-                    new_segment = KTSegment(target, grip_open,
-                                            last_segment, is_traj = False,
-                                            is_joints = self.is_joints)
-                    self.segments.append(new_segment)
+                target = new_segment.get_end_joints()
+                last_target = last_segment.get_end_joints()
+                dist = 0
+                for joint in target: #changed to max over joints
+                    d1 = abs(last_target[joint]-target[joint])
+                    if  d1 > dist:
+                        dist = d1
+                if dist > self.JOINT_MOVE_THRESH:
+                    new_segment.set_prev(last_segment)
                     last_segment = new_segment
                     saved = True
                 else:
-                    if last_segment is not None:
-                        # didn't move, so update gripper; this is how the prev.
-                        # version worked
-                        last_segment.gripper_open = grip_open
+                    # didn't move, so update gripper; this is how the prev.
+                    # version worked
+                    last_segment.gripper_open = grip_open
 
             if not saved:
                 rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
@@ -224,6 +246,7 @@ class KTPlayback(object):
         display_trajectory=DisplayTrajectory()
         display_trajectory.trajectory_start = self.planner.robot.get_current_state()
         while next_seg is not None:
+            print next_seg
             display_trajectory.trajectory.append(next_seg.get_plan())
             next_seg = next_seg.next_seg
         self.display_trajectory_publisher.publish(display_trajectory)
@@ -242,8 +265,9 @@ class KTPlayback(object):
 class KTRecord(object):
     def __init__(self, bagfile_dir):
         if not os.path.isdir(os.path.expanduser(bagfile_dir)):
-            rospy.logerr("Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(bagfile_dir)))
-            raise(ValueError)
+            errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(bagfile_dir))
+            rospy.logerr(errstr)
+            raise(ValueError(errstr))
 
         self.frames = []
 

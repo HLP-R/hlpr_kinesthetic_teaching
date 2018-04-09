@@ -63,8 +63,6 @@ class PlaybackKFDemoAction(object):
         # Setup the actionlib server
         self.server = actionlib.SimpleActionServer('playback_keyframe_demo', PlaybackKeyframeDemoAction, execute_cb=self.do_playback_keyframe_demo, auto_start=False)
 
-        # Start the server
-        self.server.start()
 
         # Load the drivers for the arm and gripper
         self.arm_planner = ArmMoveIt()
@@ -120,6 +118,10 @@ class PlaybackKFDemoAction(object):
         # Store the current joint states
         self.current_joint_state = dict()
 
+        rospy.logwarn("Starting playback action server.")
+        self.server.start()
+
+        
     def _gripper_update(self, msg):
         self.gripper_pos = msg.position
 

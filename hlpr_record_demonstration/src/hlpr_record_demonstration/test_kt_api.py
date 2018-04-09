@@ -34,26 +34,23 @@ from kinesthetic_teaching_api import KTRecord, KTPlayback
 
 if __name__=="__main__":
     rospy.init_node("api_testing")
-    k = KTRecord("~/test_bagfiles")
+    '''k = KTRecord("~/test_bagfiles")
     rospy.sleep(0.5)
     k.start("test")
-    rospy.sleep(0.5)
-    for i in range(5):
-        k.write_kf()
-        rospy.sleep(0.5)
-
-    for i in range(3):
-        k.remove_last_frame()
-
-    for i in range(2):
-        k.write_kf()
-        rospy.sleep(0.5)
-        
-    frames = k.end()
+    while not rospy.is_shutdown():
+        print "Press enter to grab a keyframe, 'd' to delete, 'q' to finish."
+        r = raw_input()
+        if r == '':
+            k.write_kf()
+        elif r=='d':
+            k.remove_last_frame()
+        elif r=='q':
+            break    
+    frames = k.end()'''
 
     t = KTPlayback()
 
     t.load_bagfile("~/test_bagfiles/test.bag")
     print t.segments
-    t.load_frames(frames)
-    print t.segments
+    t.vis_plan()
+    
