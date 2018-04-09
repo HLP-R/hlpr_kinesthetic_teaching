@@ -29,12 +29,16 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import yaml
+import importlib
+import copy
 
 import rospy
 import actionlib
 import rosbag
+import rospkg
 
-from hlpr_manipulation_utils import arm_moveit2
+from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 
 #segments are a double-linked list
 class KTSegment(object):
@@ -49,7 +53,7 @@ class KTSegment(object):
         self.points = None
         self.is_traj = False
         self.is_joints = is_joints
-        self.planner = arm_moveit2.ArmMoveIt()
+        self.planner = ArmMoveIt()
         
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
@@ -97,6 +101,9 @@ class KTSegment(object):
         self.next_seg = segment
         segment.prev_seg = self
 
+    #def __repr__(self):
+    #    return
+
 
 class KTPlayback(object):
     MIN_DELTA_T = rospy.Duration(1.0)
@@ -107,17 +114,29 @@ class KTPlayback(object):
     JOINT_MOVE_THRESH = 0.01
     
     def __init__(self, is_joints=True):
-        self.planner = arm_moveit2.ArmMoveIt()
+        self.planner = ArmMoveIt()
         self.display_trajectory_publisher = rospy.Publisher(
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
         self.is_joints=is_joints #TODO: allow mixing EEF-only and joint keyframes
+
        
     def load_bagfile(self, bagfile):
         bag = rosbag.Bag(bagfile, "r")
-        frames = []
+        msgs = []
         for topic, msg, time in bag.read_msgs():
-            frames.append((topic, msg, time))
+            msgs.append((topic, msg, time))
+
+        frames = []
+
+        time = msgs[0][2] #(topic, msg, time)
+        while i<len(msgs):
+            frame = []
+            while msgs[i][2]==time and i<len(msgs):
+                frame.append(msgs[i])
+                i+=1
+            frames.append(frame)
+                    
         self.load_frames(frames)
             
     def load_pkl(self, pkl_file):
@@ -130,36 +149,54 @@ class KTPlayback(object):
         #subsample trajectory frames
         self.segments = []
         
-        time = frames[0][2] #(topic, msg, time)
-        done = False
-        i = 0
+        time = None
         last_target = None
         last_segment = None
-        while i<len(frames):
+        for frame in frames:
+            #subsample trajectory frames
+            new_time = frame[2]
+            if time is not None and new_time < time+rospy.Duration(MIN_DELTA_T):
+                continue
+            else:
+                time = new_time
+                
             step = {}
-            while frames[i][2]==time and i < len(frames):
-                topic = frames[i][0]
-                msg = frames[i][1]
+            for msg in frame:
+                topic = msg[0]
                 if topic in step:
                     rospy.logwarn("Multiple messages at time {} for topic {}".format(time, topic))
                 else:
                     step[topic]=msg
 
-                if self.is_joints:
-                    joint_msg = step[self.JOINT_TOPIC]
-                    arm_joints = self.planner.group[0].get_active_joints()
-                    target = dict([(joint,
-                                    joint_msg.position[joint_msg.name.index(joint)])
-                                   for joint in arm_joints])
-                else:
-                    eef_msg = step[self.EEF_TOPIC]
-                    target = eef_msg
+            if self.is_joints:
+                joint_msg = step[self.JOINT_TOPIC]
+                arm_joints = self.planner.group[0].get_active_joints()
+                target = dict([(joint,
+                                joint_msg.position[joint_msg.name.index(joint)])
+                               for joint in arm_joints])
+            else:
+                eef_msg = step[self.EEF_TOPIC]
+                target = eef_msg
 
-                if self.GRIPPER_TOPIC in step:
-                    grip_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
-                    
-                saved = False
-                if last_target is None:
+            if self.GRIPPER_TOPIC in step:
+                grip_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
+
+            saved = False
+            if last_target is None:
+                new_segment = KTSegment(target, grip_open,
+                                        last_segment, is_traj = False,
+                                        is_joints = self.is_joints)
+                self.segments.append(new_segment)
+                last_segment = new_segment
+                saved = True
+            else:
+                if self.is_joints:
+                    dist = 0
+                    for joint in target: #changed to max over joints
+                        d1 = abs(last_target[joint]-target[joint])
+                        if  d1 > dist:
+                            dist = d1
+                if not self.is_joints or dist > self.JOINT_MOVE_THRESH:
                     new_segment = KTSegment(target, grip_open,
                                             last_segment, is_traj = False,
                                             is_joints = self.is_joints)
@@ -167,33 +204,13 @@ class KTPlayback(object):
                     last_segment = new_segment
                     saved = True
                 else:
-                    if self.is_joints:
-                        dist = 0
-                        for joint in target: #changed to max over joints
-                            d1 = abs(last_target[joint]-target[joint])
-                            if  d1 > dist:
-                                dist = d1
-                    if not self.is_joints or dist > self.JOINT_MOVE_THRESH:
-                        new_segment = KTSegment(target, grip_open,
-                                                last_segment, is_traj = False,
-                                                is_joints = self.is_joints)
-                        self.segments.append(new_segment)
-                        last_segment = new_segment
-                        saved = True
-                    else:
-                        if last_segment is not None:
-                            # didn't move, so update gripper; this is how the prev.
-                            # version worked
-                            last_segment.gripper_open = grip_open
-                            
-                if not saved:
-                    rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
-                
-                while frames[i][2]<time+rospy.Duration(MIN_DELTA_T) and i<len(frames):
-                    #subsampling trajectory frames
-                    i+=1
-            
-            i+=1
+                    if last_segment is not None:
+                        # didn't move, so update gripper; this is how the prev.
+                        # version worked
+                        last_segment.gripper_open = grip_open
+
+            if not saved:
+                rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
             
 
     def write_pkl(self,pklfile):
@@ -224,14 +241,13 @@ class KTPlayback(object):
 #right now this doesn't handle moving the gripper for you!
 class KTRecord(object):
     def __init__(self, bagfile_dir):
-        if not os.is_dir(os.path.expanduser(bagfile_dir)):
+        if not os.path.isdir(os.path.expanduser(bagfile_dir)):
             rospy.logerr("Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(bagfile_dir)))
             raise(ValueError)
-        
+
         self.frames = []
 
         self.bag_dir = os.path.normpath(os.path.expanduser(bagfile_dir))
-        
         
         default_yaml_loc = (rospkg.RosPack().get_path('hlpr_record_demonstration')
                             +'/data/topics.yaml')
@@ -249,7 +265,7 @@ class KTRecord(object):
 
         for topic in data_types:
             # Split the message type from the message package
-            msg_type = self.data_types[topic]
+            msg_type = data_types[topic]
             msg_arr = msg_type.split('/')
             msg_pkg = msg_arr[0] + '.msg'
 
@@ -267,29 +283,38 @@ class KTRecord(object):
             except:
                 rospy.logwarn("Messages of type: %s could not be loaded and will not be recorded" % msg_type)
         rospy.loginfo("Topic monitor setup complete")
+        
+        self.msg_store={}
         self.recording = False
-                
+        self.record_traj = False
+        
+        
     def monitor_cb(self, msg, topic):
         self.msg_store[topic] = msg
 
     def record_topics(self):
         time = rospy.Time.now()
+        frame = []
         for topic in self.msg_store:
-            self.frames.append((topic, copy.deepcopy(self.msg_store[topic]), time))
-
+            frame.append((topic, copy.deepcopy(self.msg_store[topic]), time))
+        self.frames.append(frame)
+            
     def clear_frames(self):
         self.frames = []
 
     def remove_last_frame(self):
         self.frames.pop()
 
-    def write_bagfile(self, bag_name):
-        bag = rosbag.Bag(bag_name, "w")
+    def write_bagfile(self):
+        if len(self.frames)==0:
+            rospy.logwarn("No frames recorded! Writing empty bagfile...")
+        bag = rosbag.Bag(self.bag_name, "w")
         for frame in self.frames:
-            time = frame[0]
-            msgs = frame[1]
-            for topic in msgs:
-                bag.write(topic, msgs[topic], t=time)
+            for msg_info in frame:
+                topic = msg_info[0]
+                time = msg_info[2]
+                msg = msg_info[1]
+                bag.write(topic, msg, t=time)
         bag.close()
 
     def write_traj(self):
@@ -301,7 +326,12 @@ class KTRecord(object):
     def start(self, name, keyframe=True):
         self.clear_frames()
         self.recording = True
-        self.bag_name = os.relpath(self.bag_dir, name+".bag")
+        if name[-4:]!=".bag":
+            bagname = name+".bag"
+        full_bag_path = self.bag_dir+"/"+ bagname
+        if os.path.isfile(full_bag_path):
+            rospy.logerr("Bagfile exists! Exit with Ctrl-C before 'end' is called to avoid overwriting your data")
+        self.bag_name = full_bag_path 
         if keyframe:
             self.record_topics()
         else:
@@ -312,11 +342,15 @@ class KTRecord(object):
         self.record_thread.join()
 
     def start_traj_record(self):
+        if not self.recording:
+            rospy.logwarn("Cannot start trajectory logging until recording is started.  Start recording and try again.")
         self.record_thread = threading.Thread(target=self.write_traj)
         self.record_traj = True
         self.record_thread.start()
         
     def write_kf(self):
+        if not self.recording:
+            rospy.logwarn("Cannot write keyframe: recording not started.  Start recording and try again.")
         if self.record_traj:
             rospy.logwarn("Cannot write keyframe while recording trajectory. Stop recording trajectory and try again.")
             return
@@ -326,8 +360,9 @@ class KTRecord(object):
         if not self.recording:
             rospy.logwarn("Cannot end recording: recording was never started!")
             return
-        if self.record_traj = True:
+        if self.record_traj == True:
             self.stop_traj_record()
-        self.write_bagfile(self.bag_name)
+        self.write_bagfile()
         self.recording = False
         self.bag_name = ""
+        return self.frames
