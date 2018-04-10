@@ -29,28 +29,38 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import rospy
-from kinesthetic_teaching_api import KTRecord, KTPlayback
+from kinesthetic_teaching_api import KTInterface
 
 
 if __name__=="__main__":
-    rospy.init_node("api_testing")
-    '''k = KTRecord("~/test_bagfiles")
+    rospy.init_node("kt_api_testing")
+    k = KTInterface("~/test_bagfiles")
+
     rospy.sleep(0.5)
     k.start("test")
     while not rospy.is_shutdown():
-        print "Press enter to grab a keyframe, 'd' to delete, 'q' to finish."
+        print "Press enter to grab a keyframe; type 'd' to delete."
+        print "Type 'n' to move to the next keyframe; 'p' to move to previous."
+        print "Type 's' to move to the start; 'e' to move to the end."
+        print "Type 'r' to release the arm and 'l' to lock the arm."
+        print "Type 'q' to write to a bag and quit."
         r = raw_input()
         if r == '':
             k.write_kf()
         elif r=='d':
-            k.remove_last_frame()
+            k.remove_current_frame()
+        elif r=='n':
+            k.move_forward()
+        elif r=='p':
+            k.move_backward()
+        elif r=='s':
+            k.move_to_start()
+        elif r=='e':
+            k.move_to_end()
+        elif r=='r':
+            k.release_arm()
+        elif r=='l':
+            k.lock_arm()
         elif r=='q':
-            break    
-    frames = k.end()'''
-
-    t = KTPlayback()
-
-    t.load_bagfile("~/test_bagfiles/test.bag")
-    print t.segments
-    t.vis_plan()
-    
+            break
+    k.end()

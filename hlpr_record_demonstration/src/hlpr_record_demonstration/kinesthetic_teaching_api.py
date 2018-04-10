@@ -40,27 +40,76 @@ import rospkg
 
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
+from kinova_msgs.srv import Start, Stop
+from hlpr_manipulation_utils.manipulator import Gripper
 
 #segments are a double-linked list
 class KTSegment(object):
-    def __init__(self, planner, target, gripper_open, prev_seg = None, is_traj = False,
-                 is_joints = True):
+    JOINT_TOPIC = "joint_states"
+    EEF_TOPIC = "eef_pose"
+    GRIPPER_TOPIC = "/vector/right_gripper/stat"
+    GRIPPER_OPEN_THRESH = 0.06
+    
+    def __init__(self, planner, frames, delta_t,
+                 prev_seg = None, next_seg = None,
+                 is_traj = False, is_joints = True):
         self.is_traj = is_traj
-        self.prev_seg = prev_seg
-        self.gripper_open = gripper_open
-        self.next_seg = None
-        self.end = target
+        self.next_seg = next_seg
         self.plan = None
-        self.points = None
-        self.is_traj = False
+        self.prev_seg = prev_seg
+        if self.prev_seg is not None:
+            self.prev_seg.set_next(self)
+        if self.next_seg is not None:
+            self.next_seg.set_prev(self)
+        self.dt = delta_t
+
         self.is_joints = is_joints
         self.planner = planner
+        self.gripper = Gripper()
+        self.frames = frames
+
+        if self.is_traj == True:
+            rospy.logwarn("Trajectory control not implemented; only loading last frame")
+        #TODO: load trajectory into part of a plan; note that you'll still need to plan to the starting point of the trajectory, and could run into smoothness issues
+        frame = self.frames[-1]
+
+        step = {}
+        for msg in frame:
+            topic = msg[0]
+            if topic in step:
+                rospy.logwarn("Multiple messages at time {} for topic {}".format(time, topic))
+            else:
+                step[topic]=msg[1]
+
+        if self.is_joints:
+            if not self.JOINT_TOPIC in step:
+                rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, time))
+                return None
+
+            joint_msg = step[self.JOINT_TOPIC]
+            arm_joints = self.planner.group[0].get_active_joints()
+            target = dict([(joint,
+                            joint_msg.position[joint_msg.name.index(joint)])
+                           for joint in arm_joints])
+        else:
+            eef_msg = step[self.EEF_TOPIC]
+            target = eef_msg
+
+        if self.GRIPPER_TOPIC in step:
+            self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
+
+        self.end = target
         
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
         self.prev_seg.next_seg = self
         self.plan=None
 
+    def set_next(self, segment):
+        self.next_seg = segment
+        segment.prev_seg = self
+        segment.plan = None
+        
     def set_eef_target(self, target):
         self.is_joints = False
         self.plan = None
@@ -77,11 +126,36 @@ class KTSegment(object):
         else:
             return self.get_plan().joint_trajectory.points[-1]
 
+    def get_end_state(self):
+        return self.planner.state_from_joints(self.get_end_joints())
+
+    def get_start_joints(self):
+        if self.prev_seg is not None:
+            return self.prev_seg.get_end_joints()
+        else:
+            return None
+
+    def get_start_state(self):
+        if self.prev_seg is not None:
+            return self.prev_seg.get_end_state()
+        else:
+            return self.planner.robot.get_current_state()
+
     def get_plan(self):
-        if self.plan is not None:
+        #always replan if first segment, since robot could be starting from
+        #anywhere
+        if self.plan is not None and self.prev_seg is not None:
             return self.plan
         else:
             return self.make_plan()
+
+    def get_reversed_plan(self):
+        nalp = copy.deepcopy(self.get_plan())
+        nalp.joint_trajectory.points = nalp.joint_trajectory.points[::-1]
+        ref_time = nalp.joint_trajectory.points[0].time_from_start
+        for p in nalp.joint_trajectory.points:
+            p.time_from_start = ref_time-p.time_from_start
+        return nalp
 
     def make_plan(self):
         if self.is_traj:
@@ -89,7 +163,7 @@ class KTSegment(object):
             return None
 
         if self.prev_seg is not None:
-            start = self.prev_seg.get_end_joints()
+            start = self.prev_seg.get_end_state()
         else:
             start = None
             
@@ -98,10 +172,6 @@ class KTSegment(object):
                                            starting_config=start)
         return self.plan
 
-    def change_next(self, segment):
-        self.next_seg = segment
-        segment.prev_seg = self
-
     def __repr__(self):
         def abbr(joints):
             s = sorted(joints.items(), key=lambda j:j[0])
@@ -109,7 +179,7 @@ class KTSegment(object):
             return s
         
         if self.prev_seg is not None:
-            start = abbr(self.prev_seg.get_end_joints())
+            start = abbr(self.get_start_joints())
         else:
             start = "start"
 
@@ -118,169 +188,43 @@ class KTSegment(object):
         r = "<KTSegment from {} to {}>".format(start, end)
         return r
 
-
-class KTPlayback(object):
-    MIN_DELTA_T = rospy.Duration(0.1)
-    JOINT_TOPIC = "joint_states"
-    EEF_TOPIC = "eef_pose"
-    GRIPPER_TOPIC = "/vector/right_gripper/stat"
-    GRIPPER_OPEN_THRESH = 0.06
-    JOINT_MOVE_THRESH = 0.01
-    
-    def __init__(self, is_joints=True):
-        self.planner = ArmMoveIt()
-        self.display_trajectory_publisher = rospy.Publisher(
-            '/move_group/display_planned_path',
-            DisplayTrajectory, queue_size=1)
-        self.is_joints=is_joints #TODO: allow mixing EEF-only and joint keyframes
-        self.first=None
-       
-    def load_bagfile(self, bagfile):
-        bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
-        msgs = []
-        for topic, msg, time in bag.read_messages():
-            msgs.append((topic, msg, time))
-
-        frames = []
-
-        time = msgs[0][2] #(topic, msg, time)
-        i=0
-        while i<len(msgs):
-            frame = []
-            while i<len(msgs) and msgs[i][2]==time:
-                frame.append(msgs[i])
-                i+=1
-            if i<len(msgs):
-                time = msgs[i][2]
-            frames.append(frame)
-        self.load_frames(frames)
-            
-    def load_pkl(self, pkl_file):
-        with open(pkl_file, "rb") as filename:
-            self.segments = cPickle.load(filename)
-            
-    def load_frames(self, frames):
-        if len(frames)==0:
-            rospy.logwarn("No frames to load! Clearing segments...")
-        
-        frames.sort(key=lambda f:f[0][2])
-        
-        #subsample trajectory frames
-        self.segments = []
-        
-        time = None
-        last_segment = None
-        for frame in frames:
-            #subsample trajectory frames
-            new_time = frame[0][2]
-            if time is not None and new_time < time+self.MIN_DELTA_T:
-                dt = (new_time-time).to_sec()
-                rospy.logwarn("Skipping frame at time {}. Only {}s since last frame".format(new_time,dt))
-                continue
-            else:
-                time = new_time
-                
-            step = {}
-            for msg in frame:
-                topic = msg[0]
-                if topic in step:
-                    rospy.logwarn("Multiple messages at time {} for topic {}".format(time, topic))
-                else:
-                    step[topic]=msg[1]
-
-            if self.is_joints:
-                if not self.JOINT_TOPIC in step:
-                    rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, time))
-                    continue
-                
-                joint_msg = step[self.JOINT_TOPIC]
-                arm_joints = self.planner.group[0].get_active_joints()
-                target = dict([(joint,
-                                joint_msg.position[joint_msg.name.index(joint)])
-                               for joint in arm_joints])
-            else:
-                eef_msg = step[self.EEF_TOPIC]
-                target = eef_msg
-
-            if self.GRIPPER_TOPIC in step:
-                grip_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
-
-            saved = False
-            new_segment=KTSegment(self.planner, target, grip_open,
-                                  last_segment, is_traj = False,
-                                  is_joints = self.is_joints)
-            
-            if last_segment is None:
-                self.segments.append(new_segment)
-                last_segment = new_segment
-                saved = True
-            else:
-                target = new_segment.get_end_joints()
-                last_target = last_segment.get_end_joints()
-                dist = 0
-                for joint in target: #changed to max over joints
-                    d1 = abs(last_target[joint]-target[joint])
-                    if  d1 > dist:
-                        dist = d1
-                if dist > self.JOINT_MOVE_THRESH:
-                    new_segment.set_prev(last_segment)
-                    last_segment = new_segment
-                    saved = True
-                else:
-                    # didn't move, so update gripper; this is how the prev.
-                    # version worked
-                    last_segment.gripper_open = grip_open
-
-            if not saved:
-                rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
-            
-
-    def write_pkl(self,pklfile):
-        cPickle.dump(self.segments, open(pklfile, "wb"), cPickle.HIGHEST_PROTOCOL)
-
-    def vis_plan(self):
-        if self.first is None:
-            self.first = self.segments[0]
-
-        next_seg = self.first
-        display_trajectory=DisplayTrajectory()
-        display_trajectory.trajectory_start = self.planner.robot.get_current_state()
-        while next_seg is not None:
-            print next_seg
-            display_trajectory.trajectory.append(next_seg.get_plan())
-            next_seg = next_seg.next_seg
-        self.display_trajectory_publisher.publish(display_trajectory)
-
-    def playback_plan(self):
-        if self.first is None:
-            self.first = self.segments[0]
-
-        next_seg = self.first
-        plan = self.planner.plan_pose(next_seg.start, is_joint_pos = next_seg.is_eef)
-        self.planner.move_robot(plan)
-        while next_seg is not None:
-            self.planner.move_robot(next_seg.plan)
-
 #right now this doesn't handle moving the gripper for you!
-class KTRecord(object):
-    def __init__(self, bagfile_dir):
+class KTInterface(object):
+    MIN_DELTA_T = rospy.Duration(0.1)
+    JOINT_MOVE_THRESH = 0.01
+    ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
+    ARM_LOCK_SERVICE = '/j2s7s300_driver/in/stop_force_control'
+    
+    def __init__(self, bagfile_dir, is_joints=True):
         if not os.path.isdir(os.path.expanduser(bagfile_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(bagfile_dir))
             rospy.logerr(errstr)
             raise(ValueError(errstr))
 
-        self.frames = []
-
         self.bag_dir = os.path.normpath(os.path.expanduser(bagfile_dir))
         
         default_yaml_loc = (rospkg.RosPack().get_path('hlpr_record_demonstration')
                             +'/data/topics.yaml')
-        default_traj_rate = 100
+        default_traj_rate = 3
         yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
         
         
         self.traj_record_rate = rospy.get_param("~traj_record_rate",
                                                 default_traj_rate)
+
+        self.msg_store={}
+        self.recording = False
+        self.record_traj = False
+        self.last_time = None
+        self.segment_pointer = None
+        self.at_keyframe = None
+        self.is_joints = is_joints
+        self.first = None
+        self.segments = []
+        self.planner = ArmMoveIt()
+        self.display_trajectory_publisher = rospy.Publisher(
+            '/move_group/display_planned_path',
+            DisplayTrajectory, queue_size=1)
 
         rospy.loginfo("Setting up topic monitors")
         data_types = {}
@@ -307,57 +251,123 @@ class KTRecord(object):
             except:
                 rospy.logwarn("Messages of type: %s could not be loaded and will not be recorded" % msg_type)
         rospy.loginfo("Topic monitor setup complete")
-        
-        self.msg_store={}
-        self.recording = False
-        self.record_traj = False
-        
+
+        rospy.loginfo("Waiting for arm services")
+        rospy.wait_for_service(self.ARM_RELEASE_SERVICE)
+        rospy.wait_for_service(self.ARM_LOCK_SERVICE)
+        self.arm_release_srv = rospy.ServiceProxy(self.ARM_RELEASE_SERVICE, Start)
+        self.arm_lock_srv = rospy.ServiceProxy(self.ARM_LOCK_SERVICE, Stop)
+        rospy.loginfo("Ready to record keyframes.")
+
         
     def monitor_cb(self, msg, topic):
         self.msg_store[topic] = msg
 
-    def record_topics(self):
-        time = rospy.Time.now()
-        frame = []
-        for topic in self.msg_store:
-            frame.append((topic, copy.deepcopy(self.msg_store[topic]), time))
-        self.frames.append(frame)
-            
     def clear_frames(self):
-        self.frames = []
+        self.last_time = rospy.Time.now()
+        self.segment_pointer = None
+        self.first = None
+        self.segments = []
 
-    def remove_last_frame(self):
-        self.frames.pop()
+    def remove_current_frame(self):
+        self.last_time = rospy.Time.now()
+        self.segment_pointer.prev_seg.set_next(self.segment_pointer.next_seg)
+        self.segments.remove(self.segment_pointer)
+        self.segment_pointer = self.segment_pointer.prev_seg
+        self.at_keyframe = None
 
     def write_bagfile(self):
-        if len(self.frames)==0:
-            rospy.logwarn("No frames recorded! Writing empty bagfile...")
+        if len(self.segments)==0:
+            rospy.logwarn("No frames recorded! Doing nothing.")
+            return
+        
         bag = rosbag.Bag(self.bag_name, "w")
-        for frame in self.frames:
-            for msg_info in frame:
-                topic = msg_info[0]
-                time = msg_info[2]
-                msg = msg_info[1]
-                bag.write(topic, msg, t=time)
+        if self.first is None:
+            self.first = self.segments[0]
+        next_seg = self.first
+
+        prev_time = rospy.Time.now()
+        while next_seg is not None:
+            for frame in next_seg.frames:
+                max_time = rospy.Duration(0.0)
+                for msg_info in frame:
+                    topic = msg_info[0]
+                    time = msg_info[2]+prev_time+next_seg.dt
+                    if msg_info[2] + next_seg.dt > max_time:
+                        max_time = msg_info[2] + next_seg.dt
+                    msg = msg_info[1]
+                    bag.write(topic, msg, t=time)
+            prev_time = prev_time + max_time
+            next_seg = next_seg.next_seg
         bag.close()
 
-    def write_traj(self):
+    def record_keyframe(self):
+        dt = rospy.Time.now()-self.last_time
+        frame = []
+        prev_seg = self.segment_pointer
+        if prev_seg is not None:
+            next_seg = self.segment_pointer.next_seg
+        else:
+            next_seg = None
+        for topic in self.msg_store:
+            frame.append((topic, copy.deepcopy(self.msg_store[topic]), rospy.Duration(0.0)))
+        new_seg = KTSegment(self.planner, [frame],
+                            dt, prev_seg = prev_seg,
+                            next_seg = next_seg,
+                            is_traj = False, is_joints=self.is_joints)
+        saved = self.insert_segment(new_seg, prev_seg, next_seg)
+        if saved:
+            self.segment_pointer = new_seg
+            self.at_keyframe = new_seg
+
+    def record_trajectory(self, as_keyframes = True):
+        prev_seg = self.segment_pointer
+        next_seg = self.segment_pointer.next_seg
         rate = rospy.Rate(self.traj_record_rate)#Hz
-        while not rospy.is_shutdown and self.record_traj:
-            self.record_topics()
-            rate.sleep()
+        if as_keyframes:
+            while not rospy.is_shutdown and self.record_traj:
+                self.record_keyframe()
+                rate.sleep()
+        else:
+            dt = rospy.Time.now()-self.last_time
+            self.traj_frames = []
+            frames = []
+            start = rospy.Time.now()
+            while not rospy.is_shutdown and self.record_traj:
+                frame = []
+                for topic in self.msg_store:
+                    frame.append((topic, copy.deepcopy(self.msg_store[topic]),
+                                  rospy.Time.now()-start))
+                frames.append(frame)
+                rate.sleep()
+            new_seg = KTSegment(self.planner, frames,
+                                dt, prev_seg = prev_seg,
+                                next_seg = next_seg,
+                                is_traj = False, is_joints=self.is_joints)
+            self.segments.append(new_seg)
+            self.segment_pointer = new_seg
+            self.last_time = rospy.Time.now()
+
+    def set_pointer(self, segment_idx):
+        self.segment_pointer = self.segments.segment_idx
+
         
-    def start(self, name, keyframe=True):
+    def start(self, name, start_with_traj=False, is_joints = True):
         self.clear_frames()
+        self.is_joints = is_joints
         self.recording = True
+        self.last_time = rospy.Time.now()
+        self.at_keyframe = None
+        self.segment_pointer = None
         if name[-4:]!=".bag":
             bagname = name+".bag"
         full_bag_path = self.bag_dir+"/"+ bagname
         if os.path.isfile(full_bag_path):
             rospy.logerr("Bagfile exists! Exit with Ctrl-C before 'end' is called to avoid overwriting your data")
-        self.bag_name = full_bag_path 
-        if keyframe:
-            self.record_topics()
+        self.bag_name = full_bag_path
+        self.release_arm()
+        if not start_with_traj:
+            self.record_keyframe()
         else:
             self.start_traj_record()
 
@@ -368,7 +378,7 @@ class KTRecord(object):
     def start_traj_record(self):
         if not self.recording:
             rospy.logwarn("Cannot start trajectory logging until recording is started.  Start recording and try again.")
-        self.record_thread = threading.Thread(target=self.write_traj)
+        self.record_thread = threading.Thread(target=self.record_trajectory)
         self.record_traj = True
         self.record_thread.start()
         
@@ -378,7 +388,7 @@ class KTRecord(object):
         if self.record_traj:
             rospy.logwarn("Cannot write keyframe while recording trajectory. Stop recording trajectory and try again.")
             return
-        self.record_topics()
+        self.record_keyframe()
         
     def end(self):
         if not self.recording:
@@ -389,4 +399,349 @@ class KTRecord(object):
         self.write_bagfile()
         self.recording = False
         self.bag_name = ""
-        return self.frames
+        return self.segments
+    
+    def load_bagfile(self, bagfile):
+        bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
+        msgs = []
+        for topic, msg, time in bag.read_messages():
+            msgs.append((topic, msg, time))
+
+        frames = []
+
+        time = msgs[0][2] #(topic, msg, time)
+        i=0
+        while i<len(msgs):
+            frame = []
+            while i<len(msgs) and msgs[i][2]==time:
+                frame.append(msgs[i])
+                i+=1
+            if i<len(msgs):
+                time = msgs[i][2]
+            frames.append(frame)
+        self.load_frames(frames)
+
+    #moves directly to the keyframe
+    def move_to_keyframe(self, segment):
+        self.lock_arm()
+        first_seg = KTSegment(self.planner, segment.frames,
+                              segment.dt,
+                              is_traj = False,
+                              is_joints = self.is_joints)
+        plan = first_seg.get_plan()
+        self.planner.move_robot(plan)
+        self.set_gripper(self.segment.gripper_open)
+        
+    def move_forward(self):
+        self.lock_arm()
+        if self.segment_pointer is None or self.segment_pointer.next_seg is None:
+            rospy.logwarn("No keyframe to move to! Doing nothing.")
+            return
+
+        if self.at_keyframe!=self.segment_pointer:
+            rospy.logwarn("Not at the keyframe we're pointing to. Making plan to get there.")
+            self.move_to_keyframe(self.segment_pointer)
+
+        self.segment_pointer = self.segment_pointer.next_seg
+        self.planner.move_robot(self.segment_pointer.get_plan())
+        self.set_gripper(self.segment_pointer.gripper_open)
+        self.at_keyframe = self.segment_pointer
+
+    def move_backward(self):
+        self.lock_arm()
+        if self.segment_pointer is None or self.segment_pointer.prev_seg is None:
+            rospy.logwarn("No keyframe to move to! Doing nothing.")
+            return
+
+        if self.at_keyframe!=self.segment_pointer:
+            rospy.logwarn("Not at the keyframe we're pointing to. Making plan to get there.")
+            self.move_to_keyframe(self.segment_pointer)
+        
+        self.planner.move_robot(self.segment_pointer.get_reversed_plan())
+        self.set_gripper(self.segment_pointer.gripper_open)
+
+        self.segment_pointer = self.segment_pointer.prev_seg
+        self.at_keyframe = self.segment_pointer
+        
+    def move_to_start(self):
+        self.lock_arm()
+        
+        if len(self.segments) == 0:
+            rospy.logwarn("No segments. Have you recorded any keyframes?")
+            return
+            
+        if self.first is None:
+            self.first = self.segments[0]
+
+        if self.segment_pointer is None:
+            rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
+            return
+        
+        if self.segment_pointer == self.first:
+            rospy.logwarn("Already at the start. Doing nothing.")
+            return
+
+        if self.at_keyframe is None:
+            rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
+            self.move_to_keyframe(self.segment_pointer)
+            self.at_keyframe = self.segment_pointer
+
+        while self.at_keyframe != self.first:
+            self.planner.move_robot(self.at_keyframe.get_reversed_plan())
+            if self.at_keyframe.prev_seg is None:
+                break
+            else:
+                self.at_keyframe = self.at_keyframe.prev_seg
+                self.segment_pointer = self.segment_pointer.prev_seg
+                self.set_gripper(self.segment_pointer.gripper_open)
+        
+
+    def move_to_end(self):
+        self.lock_arm()
+        
+        if len(self.segments) == 0 :
+            rospy.logwarn("No segments. Have you recorded any keyframes?")
+            return
+            
+        if self.first is None:
+            self.first = self.segments[0]
+
+        if self.segment_pointer is None:
+            rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
+            return
+        
+        if self.segment_pointer.next_seg is None:
+            rospy.logwarn("Already at the end. Doing nothing.")
+            return
+
+        if self.at_keyframe is None:
+            rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
+            self.move_to_keyframe(self.segment_pointer)
+            self.at_keyframe = self.segment_pointer
+
+        while self.at_keyframe.next_seg is not None:
+            self.planner.move_robot(self.at_keyframe.get_plan())
+            self.set_gripper(self.segment_pointer.gripper_open)
+            self.at_keyframe = self.at_keyframe.next_seg
+            self.segment_pointer = self.segment_pointer.next_seg
+
+        self.planner.move_robot(self.at_keyframe.get_plan())
+
+        
+
+    def release_arm(self):
+        self.at_keyframe = None
+        self.arm_release_srv()
+
+    def lock_arm(self):
+        self.arm_lock_srv()
+
+    def open_gripper(self):
+        self.gripper.open()
+        self.gripper_is_open = True
+
+    def close_gripper(self):
+        self.gripper.close()
+        self.gripper_is_open = False
+
+    def set_gripper(self, gripper_open):
+        if gripper_open and not self.gripper_is_open:
+            self.open_gripper()
+        if gripper_close and self.gripper_is_open:
+            self.close_gripper()
+
+    def insert_segment(self, new_segment, prev_seg=None, next_seg=None):
+        saved = False
+
+        if prev_seg is None:
+            self.segments.append(new_segment)
+            saved = True
+        else:
+            target = new_segment.get_end_joints()
+            last_target = prev_seg.get_end_joints()
+            dist = 0
+            for joint in target: #changed to max over joints
+                d1 = abs(last_target[joint]-target[joint])
+                if  d1 > dist:
+                    dist = d1
+            if dist > self.JOINT_MOVE_THRESH:
+                self.segments.append(new_segment)
+                new_segment.set_prev(prev_seg)
+                saved = True
+            else:
+                # didn't move, so update gripper; this is how the prev.
+                # version worked
+                rospy.logwarn("Robot didn't move but gripper might have changed. Updating previous segment. This matches prior version behavior but might not be the best long-term solution.")
+                prev_seg.gripper_open = new_segment.gripper_open
+
+        if saved and next_seg is not None:
+            new_segment.set_next(next_seg)
+
+        return saved
+
+    def load_frames(self, frames):
+        if len(frames)==0:
+            rospy.logwarn("No frames to load! Clearing segments...")
+        
+        frames.sort(key=lambda f:f[0][2])
+        
+        #subsample trajectory frames
+        self.segments = []
+        
+        time = frames[0][0][2]
+        last_segment = None
+        for frame in frames:
+            #subsample trajectory frames for now; could store multiple frames
+            #in one segment for a trajectory segment
+            new_time = frame[0][2]
+            if time is not None and new_time < time+self.MIN_DELTA_T:
+                dt = (new_time-time).to_sec()
+                rospy.logwarn("Skipping frame at time {}. Only {}s since last frame".format(new_time,dt))
+                continue
+            else:
+                time = new_time
+
+            delta_t = new_time-time
+            for i in range(len(frame)):
+                old_item = frame[i]
+                #the following only works for keyframes, not trajectories
+                new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
+                    
+            new_segment = KTSegment(self.planner, [frame], delta_t)
+            if new_segment is None:
+                continue
+            
+            saved = self.insert_segment(new_segment, prev_seg=last_segment)
+
+            if saved:
+                last_segment = new_segment
+            else:
+                rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
+            
+
+    def write_pkl(self,pklfile):
+        cPickle.dump((self.first, self.segments), open(pklfile, "wb"), cPickle.HIGHEST_PROTOCOL)      
+            
+    def load_pkl(self, pkl_file):
+        with open(pkl_file, "rb") as filename:
+            self.first,self.segments = cPickle.load(filename)
+
+    def vis_plan_reverse(self):
+        if len(self.segments)==0:
+            rospy.logwarn("No keyframes loaded. Not doing anything.")
+            return
+        
+        if self.first is None:
+            self.first = self.segments[0]
+            rospy.logwarn("First was not set; this could result in odd behavior.")
+        
+        #run through the list to find the last segment
+        this_seg = self.first
+        next_seg = self.first.next_seg
+        while next_seg is not None:
+            this_seg = next_seg
+            next_seg = this_seg.next_seg
+        last_seg = this_seg
+
+        #add a segment to get us to the start
+
+        first_seg = KTSegment(self.planner, last_seg.frames, last_seg.dt,
+                              is_traj = False,
+                              is_joints = self.is_joints)
+        plan = first_seg.get_plan()
+        
+        display_trajectory=DisplayTrajectory()
+        display_trajectory.trajectory_start = self.planner.robot.get_current_state()
+        prev_time = rospy.Duration(0.0)
+        
+        display1 = DisplayTrajectory()
+        display1.trajectory_start = first_seg.get_start_state()
+        display1.trajectory.append(plan)
+        self.display_trajectory_publisher.publish(display1)
+        rospy.sleep(plan.joint_trajectory.points[-1].time_from_start+rospy.Duration(0.5))
+
+        if plan is None:
+            rospy.logerr("Could not find plan for segment {}".format(first_seg))
+            return
+            
+        next_plan = copy.deepcopy(plan)
+        for p in plan.joint_trajectory.points:
+            p.time_from_start+=prev_time
+            
+        display_trajectory.trajectory.append(next_plan)
+        prev_seg = last_seg
+        prev_time = plan.joint_trajectory.points[-1].time_from_start
+        
+        while prev_seg is not self.first:
+            rospy.loginfo("Displaying trajectory {}".format(prev_seg))
+            plan = prev_seg.get_reversed_plan()
+            #print plan.joint_trajectory.points[0]
+            #print plan.joint_trajectory.points[-1]
+
+            display1 = DisplayTrajectory()
+            display1.trajectory_start = prev_seg.get_end_state()
+            display1.trajectory.append(plan)
+            self.display_trajectory_publisher.publish(display1)
+            rospy.sleep(plan.joint_trajectory.points[-1].time_from_start+rospy.Duration(0.5))
+
+            if plan is None:
+                rospy.logerr("Could not find plan for segment {}".format(next_seg))
+                return
+            
+            next_plan = copy.deepcopy(plan)
+            for p in plan.joint_trajectory.points:
+                p.time_from_start+=prev_time
+                
+            display_trajectory.trajectory.append(next_plan)
+            prev_seg = prev_seg.prev_seg
+            prev_time = plan.joint_trajectory.points[-1].time_from_start
+
+        self.display_trajectory_publisher.publish(display_trajectory)
+        rospy.sleep(5.0)
+            
+    def vis_plan(self):
+        if len(self.segments)==0:
+            rospy.logwarn("No keyframes loaded. Not doing anything.")
+            return
+        
+        if self.first is None:
+            self.first = self.segments[0]
+
+        next_seg = self.first
+        display_trajectory=DisplayTrajectory()
+        display_trajectory.trajectory_start = self.planner.robot.get_current_state()
+        prev_time = rospy.Duration(0.0)
+        while next_seg is not None:
+            print next_seg
+            plan = next_seg.get_plan()
+            #print plan.joint_trajectory.points[0]
+            #print plan.joint_trajectory.points[-1]
+
+            display1 = DisplayTrajectory()
+            display1.trajectory_start = next_seg.get_start_state()
+            display1.trajectory.append(plan)
+            self.display_trajectory_publisher.publish(display1)
+            rospy.sleep(plan.joint_trajectory.points[-1].time_from_start+rospy.Duration(0.5))
+
+            if plan is None:
+                rospy.logerr("Could not find plan for segment {}".format(next_seg))
+                return
+            
+            next_plan = copy.deepcopy(plan)
+            for p in plan.joint_trajectory.points:
+                p.time_from_start+=prev_time
+                
+            display_trajectory.trajectory.append(next_plan)
+            next_seg = next_seg.next_seg
+            prev_time = plan.joint_trajectory.points[-1].time_from_start
+
+        self.display_trajectory_publisher.publish(display_trajectory)
+        rospy.sleep(5.0)
+
+    def playback_plan(self):
+        self.move_to_start()
+        self.move_to_end()
+
+    def playback_plan_reverse(self):
+        self.move_to_end()
+        self.move_to_start()
