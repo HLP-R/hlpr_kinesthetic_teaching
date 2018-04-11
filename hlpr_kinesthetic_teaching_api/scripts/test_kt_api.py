@@ -29,7 +29,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import rospy
-from kinesthetic_teaching_api import KTInterface
+from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 
 
 if __name__=="__main__":
@@ -39,10 +39,23 @@ if __name__=="__main__":
     rospy.sleep(0.5)
     k.start("test")
     while not rospy.is_shutdown():
+        
+        print "-"*60
+        print "Current frames: "
+        for s in k.segments:
+            if s == k.segment_pointer:
+                pref = "**"
+            else:
+                pref = "  "
+                
+            print pref, s
+
+        
         print "Press enter to grab a keyframe; type 'd' to delete."
         print "Type 'n' to move to the next keyframe; 'p' to move to previous."
         print "Type 's' to move to the start; 'e' to move to the end."
         print "Type 'r' to release the arm and 'l' to lock the arm."
+        print "Type 'o' to open gripper and 'c' to close."
         print "Type 'q' to write to a bag and quit."
         r = raw_input()
         if r == '':
@@ -61,6 +74,11 @@ if __name__=="__main__":
             k.release_arm()
         elif r=='l':
             k.lock_arm()
+        elif r=='c':
+            k.close_gripper()
+        elif r=='o':
+            k.open_gripper()
         elif r=='q':
             break
+        
     k.end()

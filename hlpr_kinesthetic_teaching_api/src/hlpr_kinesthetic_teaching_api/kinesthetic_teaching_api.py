@@ -102,13 +102,15 @@ class KTSegment(object):
         
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
-        self.prev_seg.next_seg = self
+        if self.prev_seg is not None:
+            self.prev_seg.next_seg = self
         self.plan=None
 
     def set_next(self, segment):
         self.next_seg = segment
-        segment.prev_seg = self
-        segment.plan = None
+        if self.next_seg is not None:
+            self.next_seg.prev_seg = self
+            self.next_seg.plan = None
         
     def set_eef_target(self, target):
         self.is_joints = False
@@ -175,17 +177,21 @@ class KTSegment(object):
     def __repr__(self):
         def abbr(joints):
             s = sorted(joints.items(), key=lambda j:j[0])
-            s = map(lambda p: round(p[1],3),s)
+            s = map(lambda p: round(p[1],2),s)
             return s
+
+        
+        end = abbr(self.get_end_joints())
         
         if self.prev_seg is not None:
             start = abbr(self.get_start_joints())
         else:
-            start = "start"
+            start = ["    " for e in end]
 
-        end = abbr(self.get_end_joints())    
+        
+        text = "["+",".join(map(lambda p: "{:<4}->{:<4}".format(p[0],p[1]), zip(start,end)))+"]"
 
-        r = "<KTSegment from {} to {}>".format(start, end)
+        r = "<KTSegment {}>".format(text)
         return r
 
 #right now this doesn't handle moving the gripper for you!
@@ -225,6 +231,8 @@ class KTInterface(object):
         self.display_trajectory_publisher = rospy.Publisher(
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
+        self.gripper = Gripper()
+        self.gripper_is_open = None
 
         rospy.loginfo("Setting up topic monitors")
         data_types = {}
@@ -271,9 +279,20 @@ class KTInterface(object):
 
     def remove_current_frame(self):
         self.last_time = rospy.Time.now()
-        self.segment_pointer.prev_seg.set_next(self.segment_pointer.next_seg)
-        self.segments.remove(self.segment_pointer)
-        self.segment_pointer = self.segment_pointer.prev_seg
+        if self.segment_pointer is None:
+            rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
+            return
+
+        if self.segment_pointer == self.first:
+            self.first = self.segment_pointer.next_seg
+            if self.segment_pointer.next_seg is not None:
+                self.segment_pointer.next_seg.set_prev(None)
+            self.segments.remove(self.segment_pointer)
+            self.segment_pointer = self.first
+        else:
+            self.segment_pointer.next_seg.set_prev(self.segment_pointer.prev_seg)
+            self.segments.remove(self.segment_pointer)
+            self.segment_pointer = self.segment_pointer.prev_seg
         self.at_keyframe = None
 
     def write_bagfile(self):
@@ -319,10 +338,17 @@ class KTInterface(object):
         if saved:
             self.segment_pointer = new_seg
             self.at_keyframe = new_seg
+            if prev_seg is None and self.first is None:
+                rospy.logwarn("Setting this keyframe to first frame. This can result in odd behavior if the segment set is not empty.")
+                self.first = new_seg
 
     def record_trajectory(self, as_keyframes = True):
         prev_seg = self.segment_pointer
         next_seg = self.segment_pointer.next_seg
+        if prev_seg is not None:
+            next_seg = self.segment_pointer.next_seg
+        else:
+            next_seg = None
         rate = rospy.Rate(self.traj_record_rate)#Hz
         if as_keyframes:
             while not rospy.is_shutdown and self.record_traj:
@@ -347,6 +373,9 @@ class KTInterface(object):
             self.segments.append(new_seg)
             self.segment_pointer = new_seg
             self.last_time = rospy.Time.now()
+            if prev_seg is None and self.first is None:
+                rospy.logwarn("Setting this keyframe to first frame. This can result in odd behavior if the segment set is not empty.")
+                self.first = new_seg
 
     def set_pointer(self, segment_idx):
         self.segment_pointer = self.segments.segment_idx
@@ -485,6 +514,8 @@ class KTInterface(object):
             rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
             self.move_to_keyframe(self.segment_pointer)
             self.at_keyframe = self.segment_pointer
+            self.set_gripper(self.segment_pointer.gripper_open)
+            
 
         while self.at_keyframe != self.first:
             self.planner.move_robot(self.at_keyframe.get_reversed_plan())
@@ -544,11 +575,15 @@ class KTInterface(object):
         self.gripper.close()
         self.gripper_is_open = False
 
-    def set_gripper(self, gripper_open):
-        if gripper_open and not self.gripper_is_open:
+    def set_gripper(self, gripper_open, wait = True):
+        if gripper_open and (self.gripper_is_open is None or not self.gripper_is_open):
             self.open_gripper()
-        if gripper_close and self.gripper_is_open:
+        if not gripper_open and (self.gripper_is_open is None or self.gripper_is_open):
             self.close_gripper()
+
+        if wait:
+            while self.gripper.is_moving() and not rospy.is_shutdown():
+                rospy.sleep(0.05)
 
     def insert_segment(self, new_segment, prev_seg=None, next_seg=None):
         saved = False
