@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(kinesthetic_teaching_api)
+project(hlpr_kinesthetic_teaching_api)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -13,7 +13,6 @@ find_package(catkin REQUIRED COMPONENTS
   kinova_msgs
   moveit_msgs
   rosbag
-  rospkg
   rospy
 )
 
@@ -109,7 +108,7 @@ catkin_python_setup()
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES kinesthetic_teaching_api
-  CATKIN_DEPENDS actionlib hlpr_manipulation_utils kinova_msgs moveit_msgs rosbag rospkg rospy
+#  CATKIN_DEPENDS actionlib hlpr_manipulation_utils kinova_msgs moveit_msgs rosbag rospkg rospy
 #  DEPENDS system_lib
 )
 

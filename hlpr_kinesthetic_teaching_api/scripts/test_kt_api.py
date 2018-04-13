@@ -43,19 +43,24 @@ if __name__=="__main__":
         print "-"*60
         print "Current frames: "
         for s in k.segments:
-            if s == k.segment_pointer:
+            if k.at_keyframe_target(segment_pointer):
                 pref = "**"
             else:
                 pref = "  "
                 
             print pref, s
 
-        
+        if k.is_joints:
+            mode = "joint keyframe"
+        else:
+            mode = "eef keyframe"
+        print "In {} mode.".format(mode)
         print "Press enter to grab a keyframe; type 'd' to delete."
         print "Type 'n' to move to the next keyframe; 'p' to move to previous."
         print "Type 's' to move to the start; 'e' to move to the end."
         print "Type 'r' to release the arm and 'l' to lock the arm."
         print "Type 'o' to open gripper and 'c' to close."
+        print "Type 'j' to toggle joint keyframe mode."
         print "Type 'q' to write to a bag and quit."
         r = raw_input()
         if r == '':
@@ -66,6 +71,8 @@ if __name__=="__main__":
             k.move_forward()
         elif r=='p':
             k.move_backward()
+        elif r=='j':
+            k.is_joints = not k.is_joints
         elif r=='s':
             k.move_to_start()
         elif r=='e':
