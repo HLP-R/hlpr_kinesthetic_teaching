@@ -43,13 +43,18 @@ if __name__=="__main__":
         print "-"*60
         print "Current frames: "
         for s in k.segments:
-            if k.at_keyframe_target(segment_pointer):
-                pref = "**"
+            if k.at_keyframe_target(s) and k.segment_pointer==s:
+                pref = "*>"
+            elif k.at_keyframe_target(s):
+                pref = "* "
+            elif k.segment_pointer==s:
+                pref = " >"
             else:
                 pref = "  "
                 
             print pref, s
-
+        print
+        
         if k.is_joints:
             mode = "joint keyframe"
         else:

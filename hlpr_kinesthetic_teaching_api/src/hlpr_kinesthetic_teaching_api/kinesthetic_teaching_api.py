@@ -380,7 +380,7 @@ class KTInterface(object):
                 self.first = new_seg
 
     def set_pointer(self, segment_idx):
-        self.segment_pointer = self.segments.segment_idx
+        self.segment_pointer = self.segments[segment_idx]
 
         
     def start(self, name, start_with_traj=False, is_joints = True):
@@ -471,6 +471,7 @@ class KTInterface(object):
             
     def move_forward(self):
         self.lock_arm()
+        
         if self.segment_pointer is None or self.segment_pointer.next_seg is None:
             rospy.logwarn("No keyframe to move to! Doing nothing.")
             return
@@ -483,7 +484,7 @@ class KTInterface(object):
                 return
 
         segment = self.segment_pointer.next_seg
-        success = self.planner.move_robot(self.segment_pointer.get_plan())
+        success = self.planner.move_robot(segment.get_plan())
         if not success:
                 rospy.logerr("Error moving to keyframe. Aborting.")
                 return
@@ -509,6 +510,7 @@ class KTInterface(object):
             rospy.logerr("Error moving to keyframe. Aborting.")
             return
         else:
+            rospy.loginfo("Moved to segment.")
             self.set_gripper(self.segment_pointer.gripper_open)
             self.segment_pointer = self.segment_pointer.prev_seg
 
@@ -540,7 +542,7 @@ class KTInterface(object):
             rospy.logwarn("Already at the start. Doing nothing.")
             return
 
-        if not self.at_seg_pointer():
+        if not self.at_keyframe_target(self.segment_pointer):
             rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
             
             
@@ -581,7 +583,7 @@ class KTInterface(object):
             rospy.logwarn("Already at the end. Doing nothing.")
             return
 
-        if not self.at_segment_pointer():
+        if not self.at_keyframe_target(self.segment_pointer):
             rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
             self.set_gripper(self.segment_pointer.gripper_open)
             success = self.move_to_keyframe(self.segment_pointer)
