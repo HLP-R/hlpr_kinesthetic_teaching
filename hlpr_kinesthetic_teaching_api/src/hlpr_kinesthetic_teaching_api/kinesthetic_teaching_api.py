@@ -515,7 +515,6 @@ class KTInterface(object):
             self.set_gripper(self.segment_pointer.gripper_open)
             self.segment_pointer = self.segment_pointer.prev_seg
 
-
     def at_seg_pointer(self):
         return self.at_keyframe_target(self.segment_pointer)
 
@@ -564,16 +563,14 @@ class KTInterface(object):
         keyframe = self.segment_pointer
         while keyframe != self.first:
             success = self.planner.move_robot(keyframe.get_reversed_plan())
-            if keyframe.prev_seg is None:
-                break
+            
+            if success:
+                keyframe = keyframe.prev_seg
+                self.segment_pointer = keyframe
+                self.set_gripper(self.segment_pointer.gripper_open)
             else:
-                if success:
-                    self.segment_pointer = self.segment_pointer.prev_seg
-                    self.set_gripper(self.segment_pointer.gripper_open)
-                else:
-                    rospy.logerr("Unable to move to keyframe {}. Aborting!".format(self.segment_pointer))
-                    return
-        
+                rospy.logerr("Unable to move to keyframe {}. Aborting!".format(self.segment_pointer))
+                return
 
     def move_to_end(self):
         self.lock_arm()
@@ -606,8 +603,8 @@ class KTInterface(object):
             success  = self.planner.move_robot(keyframe.get_plan())
 
             if success:
-                self.segment_pointer = keyframe
                 keyframe = keyframe.next_seg
+                self.segment_pointer = keyframe
                 self.set_gripper(keyframe.gripper_open)
             else:
                 rospy.logerr("Unable to move to last keyframe. Aborting!")
@@ -616,7 +613,10 @@ class KTInterface(object):
         success = self.planner.move_robot(keyframe.get_plan())
         if success:
             self.segment_pointer = keyframe
-        
+            self.set_gripper(keyframe.gripper_open)
+        else:
+            rospy.logerr("Unable to move to last keyframe. Aborting!")
+            return
 
     def release_arm(self):
         self.arm_release_srv()
