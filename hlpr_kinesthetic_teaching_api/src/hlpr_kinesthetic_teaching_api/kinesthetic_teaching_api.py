@@ -66,6 +66,7 @@ class KTSegment(object):
         self.is_joints = is_joints
         self.planner = planner
         self.gripper = Gripper()
+        self.gripper_open = self.gripper.get_pos() > 0.8
         self.frames = frames
 
         if self.is_traj == True:
@@ -523,6 +524,15 @@ class KTInterface(object):
         current_pose = self.planner.get_current_pose(simplify=False)
         matches = [abs(end_pose[j]-current_pose[j])<self.JOINT_MOVE_THRESH for j in end_pose]        
         return all(matches)
+
+    def print_current_pose(self):
+        current_pose = self.planner.get_current_pose(simplify=False)
+        def abbr(joints):
+            s = sorted(joints.items(), key=lambda j:j[0])
+            s = map(lambda p: str(round(p[1],2)),s)
+            return s
+
+        print "Current pose:", ",".join(abbr(current_pose))
         
     def move_to_start(self):
         self.lock_arm()

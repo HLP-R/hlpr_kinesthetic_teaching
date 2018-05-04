@@ -40,7 +40,7 @@ if __name__=="__main__":
     k.start("test")
     while not rospy.is_shutdown():
         
-        print "-"*60
+        print "="*60
         print "Current frames: "
         for s in k.segments:
             if k.at_keyframe_target(s) and k.segment_pointer==s:
@@ -61,15 +61,25 @@ if __name__=="__main__":
             mode = "eef keyframe"
         print "In {} mode.".format(mode)
         print "Press enter to grab a keyframe; type 'd' to delete."
-        print "Type 'n' to move to the next keyframe; 'p' to move to previous."
+        print "'n' -> move to the next keyframe"
+        print "'p' -> move to previous keyframe"
+        print "'h' -> move to current keyframe"
+        print
         print "Type 's' to move to the start; 'e' to move to the end."
         print "Type 'r' to release the arm and 'l' to lock the arm."
         print "Type 'o' to open gripper and 'c' to close."
         print "Type 'j' to toggle joint keyframe mode."
         print "Type 'q' to write to a bag and quit."
+        print "-"*60
+        k.print_current_pose()
+        print "-"*60
+
+        
         r = raw_input()
         if r == '':
             k.write_kf()
+        elif r == 'h':
+            k.move_to_keyframe(k.segment_pointer)
         elif r=='d':
             k.remove_current_frame()
         elif r=='n':
