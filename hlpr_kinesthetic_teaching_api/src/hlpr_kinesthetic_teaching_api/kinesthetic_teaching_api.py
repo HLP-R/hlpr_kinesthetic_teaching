@@ -686,7 +686,7 @@ class KTInterface(object):
             #subsample trajectory frames for now; could store multiple frames
             #in one segment for a trajectory segment
             new_time = frame[0][2]
-            if time is not None and new_time < time+self.MIN_DELTA_T:
+            if last_segment is not None and new_time < time+self.MIN_DELTA_T:
                 dt = (new_time-time).to_sec()
                 rospy.logwarn("Skipping frame at time {}. Only {}s since last frame".format(new_time,dt))
                 continue
@@ -709,6 +709,9 @@ class KTInterface(object):
                 last_segment = new_segment
             else:
                 rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
+		self.segment_pointer = self.segments[0]
+		
+	
             
 
     def write_pkl(self,pklfile):
