@@ -68,7 +68,7 @@ class KTSegment(object):
         self.is_joints = is_joints
         self.planner = planner
         self.gripper = Gripper()
-        self.gripper_open = self.gripper.get_pos() > 0.8
+        self.gripper_open = self.gripper.get_pos() > 0.08
         self.frames = frames
 
         if self.is_traj == True:
