@@ -29,18 +29,27 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import rospy
+import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 
 
 if __name__=="__main__":
     rospy.init_node("kt_api_testing")
-    k = KTInterface("~/test_bagfiles")
+    print "Please enter a bagfile name."
+    filename = raw_input()
+    k = KTInterface("~/test_bagfiles",False)
 
     rospy.sleep(0.5)
-    k.start("test")
+    k.release_arm()
+
+    print "-"*60
+    print "Move the arm to the desired starting pose and hit enter"
+    raw_input()
+    k.start(filename)
+
     while not rospy.is_shutdown():
         
-        print "="*60
+        print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
         print "Current frames: "
         for s in k.segments:
             if k.at_keyframe_target(s) and k.segment_pointer==s:

@@ -49,7 +49,10 @@ from hlpr_manipulation_utils.manipulator import Gripper
 class KTSegment(object):
     JOINT_TOPIC = "joint_states"
     EEF_TOPIC = "eef_pose"
-    GRIPPER_TOPIC = "/vector/right_gripper/stat"
+    if os.environ['ROBOT_NAME'] == "poli2":
+        GRIPPER_TOPIC = "/gripper/stat"
+    else:
+        GRIPPER_TOPIC = "/vector/right_gripper/stat"
     GRIPPER_OPEN_THRESH = 0.06
     
     def __init__(self, planner, frames, delta_t,
@@ -215,9 +218,16 @@ class KTInterface(object):
             raise(ValueError(errstr))
 
         self.save_dir = os.path.normpath(os.path.expanduser(save_dir))
+
+
+        if os.environ['ROBOT_NAME'] == "poli2":
+            default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
+                            +'/yaml/poli2_topics.yaml')
+        else:
+            default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
+                            +'/yaml/poli1_topics.yaml')
         
-        default_yaml_loc = (rospkg.RosPack().get_path('hlpr_record_demonstration')
-                            +'/data/topics.yaml')
+
         default_traj_rate = 3
         yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
         
