@@ -32,12 +32,14 @@ import rospy
 import rosbag
 import sys
 import os
+import threading
 from shutil import copyfile
 
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 from kinova_msgs.srv import Start, Stop
 from hlpr_manipulation_utils.manipulator import Gripper
+from hlpr_kinesthetic_teaching_api.msg import KTPlanDisplay
 import tf
 
 import matplotlib
@@ -47,14 +49,16 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import numpy as np
 from matplotlib import collections  as mc
 
+import matplotlib.animation as animation
+
 
 class TrajectoryDisplay:
-    def __init__(self, plans, planner):
-        self.plans = plans
+    def __init__(self, n_joints, planner):
+        self.plans = []
         self.planner = planner
         self.fig = plt.figure(facecolor="w")
 
-        self.n_joints = len(self.get_plan_poses(0)[0])
+        self.n_joints = n_joints
         
         self.joint_axes = []
         for i in range(self.n_joints):
@@ -64,11 +68,24 @@ class TrajectoryDisplay:
         self.eef_rpy = self.fig.add_subplot(3,3,9)
 
         self.main_plot = plt.subplot2grid((3,3),(0,1),colspan=2,rowspan=2, projection='3d')
+        self.plan_sub = rospy.Subscriber("/KT/display_traj",KTPlanDisplay,self.sub_cb)
+
+        self.changed=False
+        ani = animation.FuncAnimation(self.fig, self.animate, interval=30)
+        plt.show()
+
+    def sub_cb(self,msg):
+        self.plans = msg.plans
+        self.changed=True
         
 
-
-
+    def animate(self, i):
+        if self.changed:
+            self.changed=False
+            self.update_plots()
+            
     def update_plots(self):
+        rospy.loginfo("Updating plots")
         for axis in self.joint_axes + [self.eef_xyz, self.eef_rpy, self.main_plot]:
             axis.clear()
         
@@ -80,19 +97,20 @@ class TrajectoryDisplay:
         color_kfs = []
         eef_kfs = []
         for i in range(len(self.plans)):
-            joints = self.get_plan_poses(i)
             times = self.get_plan_times(i)
             color = cmap(i*(1.0/(len(self.plans)-1)))
             eefs = self.get_plan_eef(i)
             self.eef_xyz.plot(times, map(lambda p: p[0], eefs), color=color)
             self.eef_xyz.plot(times, map(lambda p: p[1], eefs), color=color)
             self.eef_xyz.plot(times, map(lambda p: p[2], eefs), color=color)
+            
             self.main_plot.plot(xs=map(lambda p: p[0], eefs),ys= map(lambda p: p[1], eefs),zs=map(lambda p: p[2], eefs),color=color, linewidth=3)
         
             self.eef_rpy.plot(times, map(lambda p: p[3], eefs), color=color)
             self.eef_rpy.plot(times, map(lambda p: p[4], eefs), color=color)
             self.eef_rpy.plot(times, map(lambda p: p[5], eefs), color=color)
-
+            
+            joints = self.get_plan_poses(i)
             for i in range(self.n_joints):
                 self.joint_axes[i].plot(times,map(lambda p: p[i], joints),color=color)
         
@@ -105,7 +123,7 @@ class TrajectoryDisplay:
         joint_kf_idxs = []
         joint_colors = []
         for i in range(len(self.plans)):
-            new_joints = self.get_plan_joints_cartesian(i,7)
+            new_joints = self.get_plan_joints_cartesian(i,15)
             if joint_locs is None:
                 joint_locs = new_joints
             else:
@@ -165,11 +183,11 @@ class TrajectoryDisplay:
 
         for axis in self.joint_axes + [self.eef_xyz, self.eef_rpy, self.main_plot]:
             axis.autoscale()
-
-        plt.show()
-
+        plt.pause(0.1)
+            
 
     def get_eef_vect(self, plan_num, axis=0):
+        rospy.loginfo("Calculating eef direction for plan {}, axis {}".format(plan_num,axis))
         traj = self.plans[plan_num].joint_trajectory
         eefs = map(lambda t: self.planner.get_FK(state = self.planner.state_from_joints(dict(zip(traj.joint_names,t.positions))))[0].pose, traj.points)
 
@@ -188,9 +206,11 @@ class TrajectoryDisplay:
 
         
     def get_plan_poses(self, plan_num):
+        rospy.loginfo("Calculating joint positions for plan {}".format(plan_num))
         return map(lambda t: t.positions, self.plans[plan_num].joint_trajectory.points)
 
     def get_plan_times(self, plan_num):
+        rospy.loginfo("Calculating times for plan {}".format(plan_num))
         if plan_num > 0:
             time_adj = 0
             for i in range(0,plan_num):
@@ -200,6 +220,7 @@ class TrajectoryDisplay:
         return map(lambda t: t.time_from_start.to_sec()+time_adj, self.plans[plan_num].joint_trajectory.points)
 
     def get_plan_eef(self, plan_num):
+        rospy.loginfo("Calculating eef positions for plan {}".format(plan_num))
         traj = self.plans[plan_num].joint_trajectory
         eefs = map(lambda t: self.planner.get_FK(state = self.planner.state_from_joints(dict(zip(traj.joint_names,t.positions))))[0].pose, traj.points)
         
@@ -215,6 +236,7 @@ class TrajectoryDisplay:
         return map(lambda p: xyzrpy(p), eefs)
         
     def get_plan_joints_cartesian(self, plan_num, skip=1):
+        rospy.loginfo("Calculating all joint locations for plan {}".format(plan_num))
         traj = self.plans[plan_num].joint_trajectory
         
         paths = []
@@ -237,28 +259,13 @@ class TrajectoryDisplay:
 
         return paths
 
+    def change_plan(self, new_plan):
+        self.plans = new_plan
+        self.changed = True
+
 if __name__=="__main__":
     rospy.init_node("preview_trajectory")
     
     a = ArmMoveIt(planning_frame="base_link")
     a.group[0].set_end_effector_link("j2s7s300_ee_link")
-
-
-    n_points = 3
-    eefs = []
-    joints = []
-
-    start = a.get_IK(a.get_random_reachable().pose)
-    
-    for i in range(n_points):
-        eef = a.get_random_reachable()
-        eefs.append(eef)
-        joints.append(a.get_IK(eef.pose))
-
-    plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(start))
-    if plans is None:
-        print "no plan found :("
-    else:
-        t = TrajectoryDisplay(plans, a)
-        t.update_plots()
-    
+    TrajectoryDisplay(7, a)
