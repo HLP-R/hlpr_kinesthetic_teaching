@@ -48,32 +48,38 @@ if __name__=="__main__":
     joints = []
 
     start = a.get_random_reachable().pose
+    start_joints =  a.get_IK(start))
     
     for i in range(n_points):
         eef = a.get_random_reachable()
         eefs.append(eef)
         joints.append(a.get_IK(eef.pose))
 
-    plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(a.get_IK(start)))
+    plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(start_joints))
     while not rospy.is_shutdown():
         if plans is None:
             print "No plan found :("
         else:
             pb.publish(KTPlanDisplay(plans=plans))
 
+
+        frame_names = [str(i) for i in range(n_points)+1]
         print "Do what?"
         s = raw_input()
         if s == 'n':
             start = a.get_random_reachable().pose
+            start_joints =  a.get_IK(start))
             eefs = []
             joints = []
             for i in range(n_points):
                 eef = a.get_random_reachable()
                 eefs.append(eef)
                 joints.append(a.get_IK(eef.pose))
-            plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(a.get_IK(start)))
-        elif s=='r':
-            joints = []
-            for i in range(n_points):
-                joints.append(a.get_IK(eefs[i].pose))
+            plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(start_joints))
+        elif s in frame_names:
+            which = frame_names.index(s)-1
+            if which == -1:
+                start_joints = a.get_IK(start)
+            else:
+                joints[which] = a.get_ik(eefs[which].pose)
             plans = a.plan_joint_waypoints(joints, starting_config = a.state_from_joints(a.get_IK(start)))

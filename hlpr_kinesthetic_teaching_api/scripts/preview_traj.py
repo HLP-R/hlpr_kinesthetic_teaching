@@ -71,6 +71,7 @@ class TrajectoryDisplay:
         self.plan_sub = rospy.Subscriber("/KT/display_traj",KTPlanDisplay,self.sub_cb)
 
         self.changed=False
+        self.arm_frame = [0,0]
         ani = animation.FuncAnimation(self.fig, self.animate, interval=30)
         plt.show()
 
@@ -83,6 +84,34 @@ class TrajectoryDisplay:
         if self.changed:
             self.changed=False
             self.update_plots()
+        else:
+            self.update_arm()
+
+    def update_arm(self):
+        if self.plans is None or len(self.plans)==0:
+            return
+        
+        plan_idx = self.arm_frame[0]
+        frame_idx = self.arm_frame[1]
+        if frame_idx == len( self.plans[plan_idx].joint_trajectory.points):
+            plan_idx+=1
+            frame_idx = 0
+        if plan_idx == len(self.plans):
+            plan_idx=0
+            frame_idx=0
+            
+        joint_locs = self.get_plan_joints_at_idx(plan_idx,frame_idx)
+        color = (0,0,0,0.5)
+        
+        for i in range(len(joint_locs[0])):
+            xs = []
+            ys = []
+            zs = []
+            for j in range(len(joint_locs)):
+                xs.append(joint_locs[j][i][0])
+                ys.append(joint_locs[j][i][1])
+                zs.append(joint_locs[j][i][2])
+            self.main_plot.plot(xs,ys,zs, color=color, linewidth = 1.5)
             
     def update_plots(self):
         rospy.loginfo("Updating plots")
@@ -119,22 +148,7 @@ class TrajectoryDisplay:
             time_kfs.append(times[-1])
             color_kfs.append(color)
             
-        joint_locs = None
-        joint_kf_idxs = []
-        joint_colors = []
-        for i in range(len(self.plans)):
-            new_joints = self.get_plan_joints_cartesian(i,15)
-            if joint_locs is None:
-                joint_locs = new_joints
-            else:
-                for j in range(len(new_joints)):
-                    joint_locs[j] = joint_locs[j]+new_joints[j]
-            joint_kf_idxs.append(len(joint_locs[0])-1)
-            color = list(cmap(i*(1.0/(len(self.plans)-1))))
-            color[3] = 0.5
-            color = tuple(color)
-            color = (0,0,0,0.5)
-            joint_colors+=[color]*len(new_joints[0])
+        
         
         
         for i in range(self.n_joints):
@@ -150,16 +164,7 @@ class TrajectoryDisplay:
 
         self.main_plot.scatter(xs=map(lambda p: p[0], eef_kfs),ys= map(lambda p: p[1], eef_kfs),zs=map(lambda p: p[2], eef_kfs))
         
-        lines = []
-        for i in range(len(joint_locs[0])):
-            xs = []
-            ys = []
-            zs = []
-            for j in range(len(joint_locs)):
-                xs.append(joint_locs[j][i][0])
-                ys.append(joint_locs[j][i][1])
-                zs.append(joint_locs[j][i][2])
-            self.main_plot.plot(xs,ys,zs, color=joint_colors[i], linewidth = 1.5)
+        
             #self.main_plot.scatter(xs,ys,zs,  color=(0,0,0,1), s = 2)
 
         '''for a in range(3):
@@ -258,6 +263,25 @@ class TrajectoryDisplay:
             paths.append(map(lambda p: xyz(p),poses))
 
         return paths
+
+    def get_plan_joints_at_idx(self, plan_num, idx):
+        traj = self.plans[plan_num].joint_trajectory
+        point = traj.points[idx]
+        state = self.planner.state_from_joints(dict(zip(traj.joint_names, point.positions)))
+        
+        def xyz(pose):
+            xyz = [pose.position.x, pose.position.y, pose.position.z]
+            return xyz
+
+        arm_links = ["j2s7s300_link_base"]+["j2s7s300_link_{}".format(i) for i in [1,2,3,4,5,6,7]]+["j2s7s300_ee_link"]
+
+        paths = []
+        for joint_name in arm_links:
+            poses = map(lambda st: self.planner.get_FK(state = st, target=joint_name)[0].pose, states)
+            paths.append(map(lambda p: xyz(p),poses))
+
+        return paths
+            
 
     def change_plan(self, new_plan):
         self.plans = new_plan
