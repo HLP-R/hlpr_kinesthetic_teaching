@@ -40,22 +40,32 @@ import rospkg
 
 import cPickle
 
-from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from moveit_msgs.msg import DisplayTrajectory, RobotTrajectory
 from kinova_msgs.srv import Start, Stop
-from hlpr_manipulation_utils.manipulator import Gripper
 
 #segments are a double-linked list
 class KTSegment(object):
-    JOINT_TOPIC = "joint_states"
-    EEF_TOPIC = "eef_pose"
+    if os.environ['ROBOT_NAME'] == "2d_arm":
+        JOINT_TOPIC = "/sim_arm/joint_state"
+    else:
+        JOINT_TOPIC = "joint_states"
+
+    
+    if os.environ['ROBOT_NAME'] == "2d_arm":
+        EEF_TOPIC = "/sim_arm/eef_pose"
+    else:
+        EEF_TOPIC = "eef_pose"
+        
     if os.environ['ROBOT_NAME'] == "poli2":
         GRIPPER_TOPIC = "/gripper/stat"
+    elif os.environ['ROBOT_NAME'] == "2d_arm":
+        GRIPPER_TOPIC = "/sim_arm/gripper_state"
     else:
         GRIPPER_TOPIC = "/vector/right_gripper/stat"
+        
     GRIPPER_OPEN_THRESH = 0.06
     
-    def __init__(self, planner, frames, delta_t,
+    def __init__(self, planner, gripper_interface, frames, delta_t,
                  prev_seg = None, next_seg = None,
                  is_traj = False, is_joints = True):
         self.is_traj = is_traj
@@ -70,7 +80,7 @@ class KTSegment(object):
 
         self.is_joints = is_joints
         self.planner = planner
-        self.gripper = Gripper()
+        self.gripper = gripper_interface
         self.gripper_open = self.gripper.get_pos() > 0.08
         self.frames = frames
 
@@ -89,7 +99,7 @@ class KTSegment(object):
 
         if self.is_joints:
             if not self.JOINT_TOPIC in step:
-                rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, time))
+                rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
                 return None
 
             joint_msg = step[self.JOINT_TOPIC]
@@ -204,14 +214,14 @@ class KTSegment(object):
         r = "<KTSegment {}>".format(text)
         return r
 
-#right now this doesn't handle moving the gripper for you!
+
 class KTInterface(object):
     MIN_DELTA_T = rospy.Duration(0.1)
     JOINT_MOVE_THRESH = 0.01
     ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
     ARM_LOCK_SERVICE = '/j2s7s300_driver/in/stop_force_control'
     
-    def __init__(self, save_dir, is_joints=True):
+    def __init__(self, save_dir, planner, gripper_interface, is_joints=True):
         if not os.path.isdir(os.path.expanduser(save_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(save_dir))
             rospy.logerr(errstr)
@@ -230,7 +240,11 @@ class KTInterface(object):
 
         default_traj_rate = 3
         yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
-        
+
+        using_real_arm = rospy.get_param("~physical_arm", True)
+
+        if os.environ["ROBOT_NAME"]=="2d_arm":
+            using_real_arm = False
         
         self.traj_record_rate = rospy.get_param("~traj_record_rate",
                                                 default_traj_rate)
@@ -243,12 +257,12 @@ class KTInterface(object):
         self.is_joints = is_joints
         self.first = None
         self.segments = []
-        self.planner = ArmMoveIt()
+        self.planner = planner
         print self.planner.get_current_pose(simplify = False)
         self.display_trajectory_publisher = rospy.Publisher(
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
-        self.gripper = Gripper()
+        self.gripper = gripper_interface
         self.gripper_is_open = None
 
         rospy.loginfo("Setting up topic monitors")
@@ -277,11 +291,16 @@ class KTInterface(object):
                 rospy.logwarn("Messages of type: %s could not be loaded and will not be recorded" % msg_type)
         rospy.loginfo("Topic monitor setup complete")
 
-        rospy.loginfo("Waiting for arm services")
-        rospy.wait_for_service(self.ARM_RELEASE_SERVICE)
-        rospy.wait_for_service(self.ARM_LOCK_SERVICE)
-        self.arm_release_srv = rospy.ServiceProxy(self.ARM_RELEASE_SERVICE, Start)
-        self.arm_lock_srv = rospy.ServiceProxy(self.ARM_LOCK_SERVICE, Stop)
+        if using_real_arm:
+            rospy.loginfo("Waiting for arm services")
+            rospy.wait_for_service(self.ARM_RELEASE_SERVICE)
+            rospy.wait_for_service(self.ARM_LOCK_SERVICE)
+            self.arm_release_srv = rospy.ServiceProxy(self.ARM_RELEASE_SERVICE, Start)
+            self.arm_lock_srv = rospy.ServiceProxy(self.ARM_LOCK_SERVICE, Stop)
+        else:
+            self.arm_release_srv = lambda: None
+            self.arm_lock_srv = lambda: None
+            
         rospy.loginfo("Ready to record keyframes.")
 
         
@@ -346,7 +365,7 @@ class KTInterface(object):
             next_seg = None
         for topic in self.msg_store:
             frame.append((topic, copy.deepcopy(self.msg_store[topic]), rospy.Duration(0.0)))
-        new_seg = KTSegment(self.planner, [frame],
+        new_seg = KTSegment(self.planner, self.gripper, [frame],
                             dt, prev_seg = prev_seg,
                             next_seg = next_seg,
                             is_traj = False, is_joints=self.is_joints)
@@ -381,7 +400,7 @@ class KTInterface(object):
                                   rospy.Time.now()-start))
                 frames.append(frame)
                 rate.sleep()
-            new_seg = KTSegment(self.planner, frames,
+            new_seg = KTSegment(self.planner, self.gripper, frames,
                                 dt, prev_seg = prev_seg,
                                 next_seg = next_seg,
                                 is_traj = False, is_joints=self.is_joints)
@@ -471,7 +490,7 @@ class KTInterface(object):
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
         self.lock_arm()
-        first_seg = KTSegment(self.planner, segment.frames,
+        first_seg = KTSegment(self.planner, self.gripper, segment.frames,
                               segment.dt,
                               is_traj = False,
                               is_joints = self.is_joints)
@@ -540,7 +559,7 @@ class KTInterface(object):
     def at_keyframe_target(self, segment):
         end_pose = segment.get_end_joints()
         current_pose = self.planner.get_current_pose(simplify=False)
-        matches = [abs(end_pose[j]-current_pose[j])<self.JOINT_MOVE_THRESH for j in end_pose]        
+        matches = [abs(end_pose[j]-current_pose[j])<self.JOINT_MOVE_THRESH for j in end_pose]
         return all(matches)
 
     def print_current_pose(self):
@@ -718,7 +737,7 @@ class KTInterface(object):
 				#the following only works for keyframes, not trajectories
 				new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
 				    
-			new_segment = KTSegment(self.planner, [frame], delta_t)
+			new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t)
 			if new_segment is None:
 				continue
 		
@@ -759,7 +778,7 @@ class KTInterface(object):
 
         #add a segment to get us to the start
 
-        first_seg = KTSegment(self.planner, last_seg.frames, last_seg.dt,
+        first_seg = KTSegment(self.planner, self.gripper, last_seg.frames, last_seg.dt,
                               is_traj = False,
                               is_joints = self.is_joints)
         plan = first_seg.get_plan()

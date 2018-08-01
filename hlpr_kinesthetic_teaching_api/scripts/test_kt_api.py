@@ -32,12 +32,21 @@ import rospy
 import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 
+if os.environ["ROBOT_NAME"]=="2d_arm":
+    from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
+else:
+    from hlpr_manipulation_utils.manipulator import Gripper
+    from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 
 if __name__=="__main__":
     rospy.init_node("kt_api_testing")
     print "Please enter a bagfile name."
     filename = raw_input()
-    k = KTInterface("~/test_bagfiles",False)
+
+    if os.environ["ROBOT_NAME"]=="2d_arm":
+        k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
+    else:
+        k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(),False)
 
     rospy.sleep(0.5)
     k.release_arm()

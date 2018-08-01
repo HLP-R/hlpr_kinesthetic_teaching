@@ -1,0 +1,12 @@
+# NOTE: The msg_type has to be in this exact format. Any extra slashes will be misinterpreted
+topic: /sim_arm/joint_state
+msg_type: sensor_msgs/JointState
+---
+topic: /sim_arm/eef_pose
+msg_type: geometry_msgs/Pose
+---
+topic: /sim_arm/gripper_state
+msg_type: robotiq_85_msgs/GripperStat
+---
+topic: /sim_arm/object_location
+msg_type: object_location/Objects
