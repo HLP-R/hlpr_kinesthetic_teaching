@@ -54,21 +54,18 @@
   <build_depend>kinova_msgs</build_depend>
   <build_depend>moveit_msgs</build_depend>
   <build_depend>rosbag</build_depend>
-  <build_depend>rospkg</build_depend>
   <build_depend>rospy</build_depend>
   <build_export_depend>actionlib</build_export_depend>
   <build_export_depend>hlpr_manipulation_utils</build_export_depend>
   <build_export_depend>kinova_msgs</build_export_depend>
   <build_export_depend>moveit_msgs</build_export_depend>
   <build_export_depend>rosbag</build_export_depend>
-  <build_export_depend>rospkg</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
   <exec_depend>actionlib</exec_depend>
   <exec_depend>hlpr_manipulation_utils</exec_depend>
   <exec_depend>kinova_msgs</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>
   <exec_depend>rosbag</exec_depend>
-  <exec_depend>rospkg</exec_depend>
   <exec_depend>rospy</exec_depend>
 
 
