@@ -2,21 +2,21 @@
 
 # Copyright (c) 2017, Elaine Short, SIM Lab
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # * Redistributions of source code must retain the above copyright notice, this
 #   list of conditions and the following disclaimer.
-# 
+#
 # * Redistributions in binary form must reproduce the above copyright notice,
 #   this list of conditions and the following disclaimer in the documentation
 #   and/or other materials provided with the distribution.
-# 
+#
 # * Neither the name of the SIM Lab nor the names of its
 #   contributors may be used to endorse or promote products derived from
 #   this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -50,24 +50,24 @@ class KTSegment(object):
     else:
         JOINT_TOPIC = "joint_states"
 
-    
+
     if os.environ['ROBOT_NAME'] == "2d_arm":
         EEF_TOPIC = "/sim_arm/eef_pose"
     else:
         EEF_TOPIC = "eef_pose"
-        
+
     if os.environ['ROBOT_NAME'] == "poli2":
         GRIPPER_TOPIC = "/gripper/stat"
     elif os.environ['ROBOT_NAME'] == "2d_arm":
         GRIPPER_TOPIC = "/sim_arm/gripper_state"
     else:
         GRIPPER_TOPIC = "/vector/right_gripper/stat"
-        
+
     GRIPPER_OPEN_THRESH = 0.06
-    
+
     def __init__(self, planner, gripper_interface, frames, delta_t,
                  prev_seg = None, next_seg = None,
-                 is_traj = False, is_joints = True):
+                 is_traj = False, is_joints = True, gripper_open=None):
         self.is_traj = is_traj
         self.next_seg = next_seg
         self.plan = None
@@ -81,7 +81,11 @@ class KTSegment(object):
         self.is_joints = is_joints
         self.planner = planner
         self.gripper = gripper_interface
-        self.gripper_open = self.gripper.get_pos() > 0.08
+        if gripper_open is None:
+            if self.gripper is None:
+                raise RuntimeError("you must supply a gripper or gripper_open value")
+            gripper_open = self.gripper.get_pos() > GRIPPER_OPEN_THRESH
+        self.gripper_open = gripper_open
         self.frames = frames
 
         if self.is_traj == True:
@@ -117,7 +121,7 @@ class KTSegment(object):
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
 
         self.end = target
-        
+
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
         if self.prev_seg is not None:
@@ -129,7 +133,7 @@ class KTSegment(object):
         if self.next_seg is not None:
             self.next_seg.prev_seg = self
             self.next_seg.plan = None
-        
+
     def set_eef_target(self, target):
         self.is_joints = False
         self.plan = None
@@ -139,7 +143,7 @@ class KTSegment(object):
         self.is_joints = True
         self.plan = None
         self.end = target
-        
+
     def get_end_joints(self):
         if self.is_joints:
             return self.end
@@ -188,7 +192,7 @@ class KTSegment(object):
             start = self.prev_seg.get_end_state()
         else:
             start = None
-            
+
         self.plan = self.planner.plan_pose(target=self.end,
                                            is_joint_pos = self.is_joints,
                                            starting_config=start)
@@ -200,15 +204,15 @@ class KTSegment(object):
             s = map(lambda p: round(p[1],2),s)
             return s
 
-        
+
         end = abbr(self.get_end_joints())
-        
+
         if self.prev_seg is not None:
             start = abbr(self.get_start_joints())
         else:
             start = ["    " for e in end]
 
-        
+
         text = "["+",".join(map(lambda p: "{:<4}->{:<4}".format(p[0],p[1]), zip(start,end)))+"]"
 
         r = "<KTSegment {}>".format(text)
@@ -220,7 +224,7 @@ class KTInterface(object):
     JOINT_MOVE_THRESH = 0.01
     ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
     ARM_LOCK_SERVICE = '/j2s7s300_driver/in/stop_force_control'
-    
+
     def __init__(self, save_dir, planner, gripper_interface, is_joints=True):
         if not os.path.isdir(os.path.expanduser(save_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(save_dir))
@@ -236,7 +240,7 @@ class KTInterface(object):
         else:
             default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
                             +'/yaml/poli1_topics.yaml')
-        
+
 
         default_traj_rate = 3
         yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
@@ -245,7 +249,7 @@ class KTInterface(object):
 
         if os.environ["ROBOT_NAME"]=="2d_arm":
             using_real_arm = False
-        
+
         self.traj_record_rate = rospy.get_param("~traj_record_rate",
                                                 default_traj_rate)
 
@@ -300,10 +304,10 @@ class KTInterface(object):
         else:
             self.arm_release_srv = lambda: None
             self.arm_lock_srv = lambda: None
-            
+
         rospy.loginfo("Ready to record keyframes.")
 
-        
+
     def monitor_cb(self, msg, topic):
         self.msg_store[topic] = msg
 
@@ -334,7 +338,7 @@ class KTInterface(object):
         if len(self.segments)==0:
             rospy.logwarn("No frames recorded! Doing nothing.")
             return
-        
+
         bag = rosbag.Bag(self.save_name, "w")
         if self.first is None:
             self.first = self.segments[0]
@@ -414,7 +418,7 @@ class KTInterface(object):
     def set_pointer(self, segment_idx):
         self.segment_pointer = self.segments[segment_idx]
 
-        
+
     def start(self, name, start_with_traj=False, is_joints = True):
 		self.clear_frames()
 		self.is_joints = is_joints
@@ -447,7 +451,7 @@ class KTInterface(object):
         self.record_thread = threading.Thread(target=self.record_trajectory)
         self.record_traj = True
         self.record_thread.start()
-        
+
     def write_kf(self):
         if not self.recording:
             rospy.logwarn("Cannot write keyframe: recording not started.  Start recording and try again.")
@@ -455,7 +459,7 @@ class KTInterface(object):
             rospy.logwarn("Cannot write keyframe while recording trajectory. Stop recording trajectory and try again.")
             return
         self.record_keyframe()
-        
+
     def end(self):
 		if not self.recording:
 			rospy.logwarn("Cannot end recording: recording was never started!")
@@ -466,7 +470,7 @@ class KTInterface(object):
 		self.recording = False
 		self.save_name = ""
 		return self.segments
-    
+
     def load_bagfile(self, bagfile):
         bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
         msgs = []
@@ -504,7 +508,7 @@ class KTInterface(object):
 
     def stop_robot(self):
         pass
-            
+
     def move_forward(self):
 		self.lock_arm()
 		print("SEGMENT POINTER:",self.segment_pointer)
@@ -542,7 +546,7 @@ class KTInterface(object):
 			if not success:
 				rospy.logerr("Error moving to keyframe. Aborting.")
 				return
-		
+
 		success = self.planner.move_robot(self.segment_pointer.get_reversed_plan())
 		if not success:
 			rospy.logerr("Error moving to keyframe. Aborting.")
@@ -570,29 +574,29 @@ class KTInterface(object):
             return s
 
         print "Current pose:", ",".join(abbr(current_pose))
-        
+
     def move_to_start(self):
         self.lock_arm()
-        
+
         if len(self.segments) == 0:
             rospy.logwarn("No segments. Have you recorded any keyframes?")
             return
-            
+
         if self.first is None:
             self.first = self.segments[0]
 
         if self.segment_pointer is None:
             rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
             return
-        
+
         if self.segment_pointer == self.first:
             rospy.logwarn("Already at the start. Doing nothing.")
             return
 
         if not self.at_keyframe_target(self.segment_pointer):
             rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
-            
-            
+
+
             success = self.move_to_keyframe(self.segment_pointer)
             if not success:
                 rospy.logerr("Unable to move to last keyframe. Aborting!")
@@ -601,7 +605,7 @@ class KTInterface(object):
         keyframe = self.segment_pointer
         while keyframe != self.first:
             success = self.planner.move_robot(keyframe.get_reversed_plan())
-            
+
             if success:
                 keyframe = keyframe.prev_seg
                 self.segment_pointer = keyframe
@@ -612,18 +616,18 @@ class KTInterface(object):
 
     def move_to_end(self):
         self.lock_arm()
-        
+
         if len(self.segments) == 0 :
             rospy.logwarn("No segments. Have you recorded any keyframes?")
             return
-            
+
         if self.first is None:
             self.first = self.segments[0]
 
         if self.segment_pointer is None:
             rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
             return
-        
+
         if self.segment_pointer.next_seg is None:
             rospy.logwarn("Already at the end. Doing nothing.")
             return
@@ -736,11 +740,11 @@ class KTInterface(object):
 				old_item = frame[i]
 				#the following only works for keyframes, not trajectories
 				new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
-				    
+
 			new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t)
 			if new_segment is None:
 				continue
-		
+
 			saved = self.insert_segment(new_segment, prev_seg=last_segment)
 
 			if saved:
@@ -748,13 +752,13 @@ class KTInterface(object):
 			else:
 				rospy.loginfo("Discarded keyframe {} at time {}; not enough movement".format(len(self.segments)-1, time))
 		self.segment_pointer = self.segments[0]
-		
-	
-            
+
+
+
 
     def write_pkl(self):
-        cPickle.dump((self.first, self.segments), open(self.save_name, "wb"), cPickle.HIGHEST_PROTOCOL)      
-            
+        cPickle.dump((self.first, self.segments), open(self.save_name, "wb"), cPickle.HIGHEST_PROTOCOL)
+
     def load_pkl(self, pkl_file):
         with open(pkl_file, "rb") as filename:
             self.first,self.segments = cPickle.load(filename)
@@ -763,11 +767,11 @@ class KTInterface(object):
         if len(self.segments)==0:
             rospy.logwarn("No keyframes loaded. Not doing anything.")
             return
-        
+
         if self.first is None:
             self.first = self.segments[0]
             rospy.logwarn("First was not set; this could result in odd behavior.")
-        
+
         #run through the list to find the last segment
         this_seg = self.first
         next_seg = self.first.next_seg
@@ -782,11 +786,11 @@ class KTInterface(object):
                               is_traj = False,
                               is_joints = self.is_joints)
         plan = first_seg.get_plan()
-        
+
         display_trajectory=DisplayTrajectory()
         display_trajectory.trajectory_start = self.planner.robot.get_current_state()
         prev_time = rospy.Duration(0.0)
-        
+
         display1 = DisplayTrajectory()
         display1.trajectory_start = first_seg.get_start_state()
         display1.trajectory.append(plan)
@@ -796,15 +800,15 @@ class KTInterface(object):
         if plan is None:
             rospy.logerr("Could not find plan for segment {}".format(first_seg))
             return
-            
+
         next_plan = copy.deepcopy(plan)
         for p in plan.joint_trajectory.points:
             p.time_from_start+=prev_time
-            
+
         display_trajectory.trajectory.append(next_plan)
         prev_seg = last_seg
         prev_time = plan.joint_trajectory.points[-1].time_from_start
-        
+
         while prev_seg is not self.first:
             rospy.loginfo("Displaying trajectory {}".format(prev_seg))
             plan = prev_seg.get_reversed_plan()
@@ -820,23 +824,23 @@ class KTInterface(object):
             if plan is None:
                 rospy.logerr("Could not find plan for segment {}".format(next_seg))
                 return
-            
+
             next_plan = copy.deepcopy(plan)
             for p in plan.joint_trajectory.points:
                 p.time_from_start+=prev_time
-                
+
             display_trajectory.trajectory.append(next_plan)
             prev_seg = prev_seg.prev_seg
             prev_time = plan.joint_trajectory.points[-1].time_from_start
 
         self.display_trajectory_publisher.publish(display_trajectory)
         rospy.sleep(5.0)
-            
+
     def vis_plan(self):
         if len(self.segments)==0:
             rospy.logwarn("No keyframes loaded. Not doing anything.")
             return
-        
+
         if self.first is None:
             self.first = self.segments[0]
 
@@ -859,11 +863,11 @@ class KTInterface(object):
             if plan is None:
                 rospy.logerr("Could not find plan for segment {}".format(next_seg))
                 return
-            
+
             next_plan = copy.deepcopy(plan)
             for p in plan.joint_trajectory.points:
                 p.time_from_start+=prev_time
-                
+
             display_trajectory.trajectory.append(next_plan)
             next_seg = next_seg.next_seg
             prev_time = plan.joint_trajectory.points[-1].time_from_start
