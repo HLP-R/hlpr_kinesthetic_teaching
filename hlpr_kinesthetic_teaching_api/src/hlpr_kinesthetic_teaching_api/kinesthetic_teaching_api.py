@@ -262,7 +262,8 @@ class KTInterface(object):
         self.first = None
         self.segments = []
         self.planner = planner
-        print self.planner.get_current_pose(simplify = False)
+        if self.planner:
+            print(self.planner.get_current_pose(simplify = False))
         self.display_trajectory_publisher = rospy.Publisher(
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
