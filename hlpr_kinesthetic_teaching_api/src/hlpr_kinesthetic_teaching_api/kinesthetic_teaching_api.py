@@ -81,11 +81,6 @@ class KTSegment(object):
         self.is_joints = is_joints
         self.planner = planner
         self.gripper = gripper_interface
-        if gripper_open is None:
-            if self.gripper is None:
-                raise RuntimeError("you must supply a gripper or gripper_open value")
-            gripper_open = self.gripper.get_pos() > GRIPPER_OPEN_THRESH
-        self.gripper_open = gripper_open
         self.frames = frames
 
         if self.is_traj == True:
@@ -107,6 +102,8 @@ class KTSegment(object):
                 return None
 
             joint_msg = step[self.JOINT_TOPIC]
+            if self.planner is None:
+                raise RuntimeError("cannot interpret joint keyframe segment because no planner was set.")
             arm_joints = self.planner.group[0].get_active_joints()
             target = dict([(joint,
                             joint_msg.position[joint_msg.name.index(joint)])
@@ -120,6 +117,13 @@ class KTSegment(object):
 
         if self.GRIPPER_TOPIC in step:
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
+
+
+        if gripper_open is None and self.gripper_open is None:
+            if self.gripper is None:
+                raise RuntimeError("you must supply a gripper or gripper_open value")
+            gripper_open = self.gripper.get_pos() > GRIPPER_OPEN_THRESH
+            self.gripper_open = gripper_open
 
         self.end = target
 
@@ -205,11 +209,27 @@ class KTSegment(object):
             s = map(lambda p: round(p[1],2),s)
             return s
 
+        def abbr_pose(pose):
+            s =  [pose.position.x,
+                  pose.position.y,
+                  pose.position.z,
+                  pose.orientation.x,
+                  pose.orientation.y,
+                  pose.orientation.z,
+                  pose.orientation.w]
+            s = map(lambda p: round(p,2),s)
+            return s
 
-        end = abbr(self.get_end_joints())
+        if self.is_joints:
+            end = abbr(self.get_end_joints())
+        else:
+            end = abbr_pose(self.end)
 
         if self.prev_seg is not None:
-            start = abbr(self.get_start_joints())
+            if self.prev_seg.is_joints:
+                start = abbr(self.get_start_joints())
+            else:
+                start = abbr_pose(self.prev_seg.end)
         else:
             start = ["    " for e in end]
 
@@ -222,11 +242,13 @@ class KTSegment(object):
 
 class KTInterface(object):
     MIN_DELTA_T = rospy.Duration(0.1)
-    JOINT_MOVE_THRESH = 0.01
+    JOINT_MOVE_THRESH = 0.01  # 0.01radians ~= 0.57degrees
+    XYZ_MOVE_THRESH = 0.005  # 5mm
+    QUAT_MOVE_THRESH = 0.01 # ???
     ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
     ARM_LOCK_SERVICE = '/j2s7s300_driver/in/stop_force_control'
 
-    def __init__(self, save_dir, planner, gripper_interface, is_joints=True):
+    def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None):
         if not os.path.isdir(os.path.expanduser(save_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(save_dir))
             rospy.logerr(errstr)
@@ -250,6 +272,9 @@ class KTInterface(object):
 
         if os.environ["ROBOT_NAME"]=="2d_arm":
             using_real_arm = False
+
+        if physical_arm is not None:
+            using_real_arm = physical_arm
 
         self.traj_record_rate = rospy.get_param("~traj_record_rate",
                                                 default_traj_rate)
@@ -473,7 +498,7 @@ class KTInterface(object):
 		self.save_name = ""
 		return self.segments
 
-    def load_bagfile(self, bagfile):
+    def load_bagfile(self, bagfile, load_joints=True):
         bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
         msgs = []
         for topic, msg, time in bag.read_messages():
@@ -491,7 +516,7 @@ class KTInterface(object):
             if i<len(msgs):
                 time = msgs[i][2]
             frames.append(frame)
-        self.load_frames(frames)
+        self.load_frames(frames, load_joints)
 
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
@@ -687,27 +712,50 @@ class KTInterface(object):
                 rospy.sleep(0.05)
 
     def insert_segment(self, new_segment, prev_seg=None, next_seg=None):
+        """
+        Create a new segment unless it is very similar to the supplied previous segment.
+        """
         saved = False
 
         if prev_seg is None:
             self.segments.append(new_segment)
             saved = True
         else:
-            target = new_segment.get_end_joints()
-            last_target = prev_seg.get_end_joints()
-            dist = 0
-            for joint in target: #changed to max over joints
-                d1 = abs(last_target[joint]-target[joint])
-                if  d1 > dist:
-                    dist = d1
-            if dist > self.JOINT_MOVE_THRESH:
+            should_make_new = False
+            if new_segment.is_joints or prev_seg.is_joints:
+                target = new_segment.get_end_joints()
+                last_target = prev_seg.get_end_joints()
+                dist = 0
+                for joint in target: #changed to max over joints
+                    d1 = abs(last_target[joint]-target[joint])
+                    if  d1 > dist:
+                        dist = d1
+                should_make_new = dist > self.JOINT_MOVE_THRESH
+            else:
+                # both are EEF keyframes
+                target = new_segment.end
+                last_target = prev_seg.end
+                delta = [target.position.x - last_target.position.x,
+                         target.position.y - last_target.position.y,
+                         target.position.z - last_target.position.z]
+                for axis in delta:
+                    should_make_new |= abs(axis) > self.XYZ_MOVE_THRESH
+                delta = [target.orientation.x - last_target.orientation.x,
+                         target.orientation.y - last_target.orientation.y,
+                         target.orientation.z - last_target.orientation.z,
+                         target.orientation.w - last_target.orientation.w]
+                for axis in delta:
+                    should_make_new |= abs(axis) > self.QUAT_MOVE_THRESH
+            if should_make_new:
                 self.segments.append(new_segment)
                 new_segment.set_prev(prev_seg)
                 saved = True
             else:
                 # didn't move, so update gripper; this is how the prev.
                 # version worked
-                rospy.logwarn("Robot didn't move but gripper might have changed. Updating previous segment. This matches prior version behavior but might not be the best long-term solution.")
+                rospy.logwarn("Robot didn't move but gripper might have changed. "
+                              "Updating previous segment. This matches prior version "
+                              "behavior but might not be the best long-term solution.")
                 prev_seg.gripper_open = new_segment.gripper_open
 
         if saved and next_seg is not None:
@@ -715,7 +763,7 @@ class KTInterface(object):
 
         return saved
 
-    def load_frames(self, frames):
+    def load_frames(self, frames, load_joints=True):
 		if len(frames)==0:
 			rospy.logwarn("No frames to load! Clearing segments...")
 
@@ -743,7 +791,7 @@ class KTInterface(object):
 				#the following only works for keyframes, not trajectories
 				new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
 
-			new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t)
+			new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_joints)
 			if new_segment is None:
 				continue
 
