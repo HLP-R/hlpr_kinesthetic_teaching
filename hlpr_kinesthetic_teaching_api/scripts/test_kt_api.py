@@ -42,6 +42,9 @@ if __name__=="__main__":
     rospy.init_node("kt_api_testing")
     print "Please enter a bagfile name."
     filename = raw_input()
+    if filename == "":
+        print "No filename provided, exiting..."
+        exit()
 
     if os.environ["ROBOT_NAME"]=="2d_arm":
         k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
@@ -52,9 +55,24 @@ if __name__=="__main__":
     k.release_arm()
 
     print "-"*60
+
+    valid = False
+    first_is_joints = None
+    while not rospy.is_shutdown():
+        print "Type 'j' to save starting pose as a joint pose"
+        print "Type 'e' to save starting pose as an eef pose"
+        r = raw_input()
+        if r=='j':
+            first_is_joints = True
+            break
+        elif r=='e':
+            first_is_joints = False
+            break
+
+
     print "Move the arm to the desired starting pose and hit enter"
     raw_input()
-    k.start(filename)
+    k.start(filename, is_joints=first_is_joints)
 
     while not rospy.is_shutdown():
         

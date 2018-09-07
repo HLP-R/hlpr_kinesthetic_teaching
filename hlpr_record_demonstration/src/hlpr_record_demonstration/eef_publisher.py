@@ -43,18 +43,22 @@ def eef_pose_pub():
   listener = tf.TransformListener()
   pub = rospy.Publisher('eef_pose', Pose, queue_size=10)
 
-  DEFAULT_LINK = '/right_ee_link'
+  DEFAULT_EEF_LINK = '/right_ee_link'
+  DEFAULT_BASE_LINK = '/base_link'
   DEFAULT_RATE = 100
 
   # Pull from param server the hz and EEF link
-  eef_link = rospy.get_param("~eef_link", DEFAULT_LINK)
+  eef_link = rospy.get_param("~eef_link", DEFAULT_EEF_LINK)
   publish_rate = rospy.get_param("~eef_rate", DEFAULT_RATE)
+  base_link = rospy.get_param("~base_link", DEFAULT_BASE_LINK)
 
+  rospy.sleep(0.5)
   rate = rospy.Rate(publish_rate)
   while not rospy.is_shutdown():
     try: 
-      trans, rot = listener.lookupTransform('/base_link', eef_link, rospy.Time(0))
-    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+      trans, rot = listener.lookupTransform(base_link, eef_link, rospy.Time())
+    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+      rospy.logwarn_throttle(30, "eef publisher error (printed every 30s): " + str(e))
       continue
     msg = Pose()
     msg.position = Point()
@@ -65,10 +69,4 @@ def eef_pose_pub():
     rate.sleep()
 
 if __name__ =='__main__':
-  try:
     eef_pose_pub()
-  except rospy.ROSInterruptException:
-    pass
-
-
-

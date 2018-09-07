@@ -93,13 +93,13 @@ class KTSegment(object):
         for msg in frame:
             topic = msg[0]
             if topic in step:
-                rospy.logwarn("Multiple messages at time {} for topic {}".format(time, topic))
+                rospy.logwarn("Multiple messages at dt {} for topic {}".format(self.dt, topic))
             else:
                 step[topic]=msg[1]
 
         if self.is_joints:
             if not self.JOINT_TOPIC in step:
-                rospy.logwarn("Joint topic {} not found at time {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
+                rospy.logwarn("Joint topic {} not found at dt {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
                 return None
 
             joint_msg = step[self.JOINT_TOPIC]
@@ -109,7 +109,8 @@ class KTSegment(object):
                            for joint in arm_joints])
         else:
             if not self.EEF_TOPIC in step:
-                rospy.logwarn("EEF topic {} not found at time {}. Check your bagfile!".format(self.EEF_TOPIC, time))
+                rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(self.EEF_TOPIC, self.dt))
+                rospy.logwarn("Available topics are: " + str(step.keys()))
             eef_msg = step[self.EEF_TOPIC]
             target = eef_msg
 
@@ -188,7 +189,7 @@ class KTSegment(object):
             start = self.prev_seg.get_end_state()
         else:
             start = None
-            
+        
         self.plan = self.planner.plan_pose(target=self.end,
                                            is_joint_pos = self.is_joints,
                                            starting_config=start)
