@@ -99,7 +99,6 @@ class KTSegment(object):
         if self.is_joints:
             if not self.JOINT_TOPIC in step:
                 rospy.logwarn("Joint topic {} not found at dt {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
-                return None
 
             joint_msg = step[self.JOINT_TOPIC]
             if self.planner is None:
@@ -108,24 +107,26 @@ class KTSegment(object):
             target = dict([(joint,
                             joint_msg.position[joint_msg.name.index(joint)])
                            for joint in arm_joints])
+            self.end = target
         else:
             if not self.EEF_TOPIC in step:
                 rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(self.EEF_TOPIC, self.dt))
                 rospy.logwarn("Available topics are: " + str(step.keys()))
-            eef_msg = step[self.EEF_TOPIC]
-            target = eef_msg
+                rospy.logwarn("Not setting the end pose. If it is not set manually, errors will occur.")
+            else:
+                eef_msg = step[self.EEF_TOPIC]
+                target = eef_msg
+                self.end = target
 
         if self.GRIPPER_TOPIC in step:
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
-
-
-        if gripper_open is None and self.gripper_open is None:
-            if self.gripper is None:
-                raise RuntimeError("you must supply a gripper or gripper_open value")
-            gripper_open = self.gripper.get_pos() > GRIPPER_OPEN_THRESH
+        else:
+            if gripper_open is None:
+                if self.gripper is None:
+                    raise RuntimeError("you must supply a gripper or gripper_open value")
+                gripper_open = self.gripper.get_pos() > GRIPPER_OPEN_THRESH
             self.gripper_open = gripper_open
 
-        self.end = target
 
     def set_prev(self, prev_seg):
         self.prev_seg = prev_seg
@@ -238,6 +239,28 @@ class KTSegment(object):
 
         r = "<KTSegment {}>".format(text)
         return r
+
+class HashableKTSegment(KTSegment):
+
+    def __init__(self, planner, gripper_interface, frames, delta_t,
+                 prev_seg = None, next_seg = None,
+                 is_traj = False, is_joints = True, gripper_open=None):
+        super(HashableKTSegment, self).__init__(planner, gripper_interface,frames,
+                                                delta_t, prev_seg, next_seg, is_traj,
+                                                is_joints, gripper_open)
+
+    def __eq__(self, other):
+        return self.end.position == other.end.position and \
+               self.end.orientation == other.end.orientation and \
+               self.dt == other.dt and \
+               self.is_joints == other.is_joints and \
+               self.gripper_open == other.gripper_open and \
+               self.is_traj == other.is_traj and \
+               self.frames == other.frames
+
+    def __hash__(self):
+        # print("hashable")
+        return hash((self.end.position.x, self.end.position.y, self.end.position.z))
 
 
 class KTInterface(object):
