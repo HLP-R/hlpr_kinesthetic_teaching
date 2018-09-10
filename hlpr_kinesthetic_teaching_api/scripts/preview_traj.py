@@ -267,7 +267,7 @@ class TrajectoryDisplay:
     def get_plan_joints_at_idx(self, plan_num, idx):
         traj = self.plans[plan_num].joint_trajectory
         point = traj.points[idx]
-        state = self.planner.state_from_joints(dict(zip(traj.joint_names, point.positions)))
+        states = [self.planner.state_from_joints(dict(zip(traj.joint_names, point.positions)))]
         
         def xyz(pose):
             xyz = [pose.position.x, pose.position.y, pose.position.z]
