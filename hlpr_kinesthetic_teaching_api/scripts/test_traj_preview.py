@@ -48,7 +48,7 @@ if __name__=="__main__":
     joints = []
 
     start = a.get_random_reachable().pose
-    start_joints =  a.get_IK(start))
+    start_joints =  a.get_IK(start)
     
     for i in range(n_points):
         eef = a.get_random_reachable()
@@ -68,7 +68,7 @@ if __name__=="__main__":
         s = raw_input()
         if s == 'n':
             start = a.get_random_reachable().pose
-            start_joints =  a.get_IK(start))
+            start_joints =  a.get_IK(start)
             eefs = []
             joints = []
             for i in range(n_points):
