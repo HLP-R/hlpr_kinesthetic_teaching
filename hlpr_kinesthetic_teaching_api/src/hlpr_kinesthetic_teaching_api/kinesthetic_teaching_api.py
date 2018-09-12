@@ -39,6 +39,7 @@ import roslib
 import rospkg
 import rospy
 import tf
+import tf2_ros
 
 import cPickle
 
@@ -136,9 +137,9 @@ class KTSegment(object):
                 rospy.logwarn("Available topics are: " + str(step.keys()))
                 rospy.logwarn("Not setting the end pose. If it is not set manually, errors will occur.")
 
-        print(step)
+        #print(step)
         if self.GRIPPER_TOPIC in step:
-            print(type(step[self.GRIPPER_TOPIC]))
+            #print(type(step[self.GRIPPER_TOPIC]))
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
         else:
             if gripper_open is None:
@@ -174,8 +175,8 @@ class KTSegment(object):
         try:
             listener.waitForTransform(self.ARM_FRAME, self.end.header.frame_id,
                                       rospy.Time(0), rospy.Duration(5))
-        except tf.TransformException as e:
-            rospy.logerror("Couldn't change from frame {} to arm frame. Keeping original frame. (Error: {})".format(self.end.header.frame_id, e))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, tf2_ros.TransformException) as e:
+            rospy.logerr("Couldn't change from frame {} to arm frame. Keeping original frame. (Error: {})".format(self.end.header.frame_id, e))
             return
 
         try:
@@ -432,7 +433,7 @@ class KTInterface(object):
             self.monitor_frames = {}
             object_frames.append(self.ARM_FRAME)
             for oframe in object_frames:
-                self.monitor_frames["{}}{}".format(EEF_PREFIX, oframe)] = (oframe, self.EEF_FRAME)
+                self.monitor_frames["{}{}".format(EEF_PREFIX, oframe)] = (oframe, self.EEF_FRAME)
             self.tf_thread = threading.Thread(target=self.monitor_tf_cb)
             self.tf_thread.start()
 
