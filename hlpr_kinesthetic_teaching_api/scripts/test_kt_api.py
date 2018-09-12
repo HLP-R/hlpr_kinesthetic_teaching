@@ -54,6 +54,9 @@ if __name__=="__main__":
     rospy.sleep(0.5)
     k.release_arm()
 
+
+    print k.planner.group[0].get_end_effector_link()
+    
     print "-"*60
 
     valid = False
@@ -74,6 +77,7 @@ if __name__=="__main__":
     raw_input()
     k.start(filename, is_joints=first_is_joints)
 
+    pause_tf_record = False
     while not rospy.is_shutdown():
         
         print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
@@ -95,7 +99,7 @@ if __name__=="__main__":
             mode = "joint keyframe"
         else:
             mode = "eef keyframe"
-        print "In {} mode.".format(mode)
+        print "In {} mode. TF recording is {}.".format(mode, not pause_tf_record)
         print "Press enter to grab a keyframe; type 'd' to delete."
         print "'n' -> move to the next keyframe"
         print "'p' -> move to previous keyframe"
@@ -106,15 +110,14 @@ if __name__=="__main__":
         print "Type 'o' to open gripper and 'c' to close."
         print "Type 'j' to toggle joint keyframe mode."
         print "Type 'q' to write to a bag and quit."
+        print "Type 'a' to add fixed frames for tracked frames."
         print "-"*60
         k.print_current_pose()
         print "-"*60
 
         
         r = raw_input()
-        if r == '':
-            k.write_kf()
-        elif r == 'h':
+        if r == 'h':
             k.move_to_keyframe(k.segment_pointer)
         elif r=='d':
             k.remove_current_frame()
@@ -136,7 +139,12 @@ if __name__=="__main__":
             k.close_gripper()
         elif r=='o':
             k.open_gripper()
+        elif r=='a':
+            k.take_tf_snapshot()
         elif r=='q':
             break
+        else:
+            k.write_kf(r)
         
     k.end()
+    k.stop_tf_threads()

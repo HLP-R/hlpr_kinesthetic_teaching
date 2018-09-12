@@ -3,7 +3,7 @@ topic: joint_states
 msg_type: sensor_msgs/JointState
 ---
 topic: eef_pose
-msg_type: geometry_msgs/Pose
+msg_type: geometry_msgs/PoseStamped
 ---
 topic: /gripper/stat
 msg_type: robotiq_85_msgs/GripperStat
