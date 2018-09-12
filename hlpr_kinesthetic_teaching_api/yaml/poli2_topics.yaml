@@ -10,3 +10,6 @@ msg_type: robotiq_85_msgs/GripperStat
 ---
 topic: object_location
 msg_type: object_location/Objects
+---
+topic: joint_states
+msg_type: sensor_msgs/JointState
