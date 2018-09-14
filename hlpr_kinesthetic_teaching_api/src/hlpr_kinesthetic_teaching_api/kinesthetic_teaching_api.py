@@ -262,7 +262,7 @@ class KTSegment(object):
             rospy.logerr("Planning not yet implemented for trajectory segments")
             return None
 
-        if self.prev_seg is not None:
+        if self.prev_seg is not None and self.is_joints:
             start = self.prev_seg.get_end_state()
         else:
             start = None
