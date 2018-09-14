@@ -31,6 +31,7 @@
 import rospy
 import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
+from std_srvs.srv import Empty
 
 if os.environ["ROBOT_NAME"]=="2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
@@ -51,6 +52,8 @@ if __name__=="__main__":
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(),False)
 
+    freezer = rospy.ServiceProxy('add_two_ints', Empty)
+        
     rospy.sleep(0.5)
     k.release_arm()
 
@@ -83,11 +86,7 @@ if __name__=="__main__":
         print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
         print "Current frames: "
         for s in k.segments:
-            if k.at_keyframe_target(s) and k.segment_pointer==s:
-                pref = "*>"
-            elif k.at_keyframe_target(s):
-                pref = "* "
-            elif k.segment_pointer==s:
+            if k.segment_pointer==s:
                 pref = " >"
             else:
                 pref = "  "
@@ -110,7 +109,7 @@ if __name__=="__main__":
         print "Type 'o' to open gripper and 'c' to close."
         print "Type 'j' to toggle joint keyframe mode."
         print "Type 'q' to write to a bag and quit."
-        print "Type 'a' to add fixed frames for tracked frames."
+        print "Type 'a' to toggle freezing of tf."
         print "-"*60
         k.print_current_pose()
         print "-"*60
@@ -140,7 +139,10 @@ if __name__=="__main__":
         elif r=='o':
             k.open_gripper()
         elif r=='a':
-            k.take_tf_snapshot()
+            try:
+                freezer()
+            except rospy.ServiceException as e:
+                print "Couldn't freeze frames; is freeze frame started from hlpr_manipulation utils?"
         elif r=='q':
             break
         else:

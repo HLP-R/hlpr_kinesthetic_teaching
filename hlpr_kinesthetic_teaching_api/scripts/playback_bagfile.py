@@ -45,14 +45,9 @@ if __name__=="__main__":
     if os.environ["ROBOT_NAME"]=="2d_arm":
         k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
     else:
-        k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(),False)
+        k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper())
 
-    k.load_bagfile(sys.argv[1], False)
-
-    
-    for segment in k.segments:
-        segment.freeze_rel_to_arm_frame()
-
+    k.load_bagfile(sys.argv[1])
 
     k.move_to_keyframe(k.segment_pointer)
 
