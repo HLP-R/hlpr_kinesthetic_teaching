@@ -52,7 +52,7 @@ if __name__=="__main__":
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(),False)
 
-    freezer = rospy.ServiceProxy('add_two_ints', Empty)
+    freezer = rospy.ServiceProxy('freeze_frames', Empty)
         
     rospy.sleep(0.5)
     k.release_arm()

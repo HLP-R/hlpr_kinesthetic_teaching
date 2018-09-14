@@ -270,11 +270,18 @@ class KTSegment(object):
         else:
             start = None
 
+        if self.is_joints:
+            what_kind = "joint"
+        else:
+            what_kind = "eef"
+            
+        rospy.loginfo("Making {} plan.".format(what_kind))
         plan = self.planner.plan_pose(target=self.end,
                                       is_joint_pos = self.is_joints,
                                       starting_config=start)
 
 
+        
         if plan is None or len(plan.joint_trajectory.points)==0:
             rospy.logwarn("No plan found. Trying again...")
             plan = self.planner.plan_pose(target=self.end,
@@ -987,11 +994,12 @@ class KTInterface(object):
 
 
             if load_joints is None:
-                load_joints = True
+                load_kf_joints = True
                 for msg in frame:
                     if msg[0]=="is_joint_kf":
-                        load_joints = msg[1].data
-                
+                        load_kf_joints = msg[1].data
+            else:
+                load_kf_joints = load_joints        
             delta_t = new_time-time
             #for i in range(len(frame)):
             #    old_item = frame[i]
@@ -999,7 +1007,7 @@ class KTInterface(object):
             #    new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
 
                 
-            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_joints, rel_frame="relative")
+            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_kf_joints, rel_frame="relative")
             if new_segment is None:
                 continue
 
