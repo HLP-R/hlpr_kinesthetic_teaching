@@ -32,6 +32,7 @@ import rospy
 import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 from std_srvs.srv import Empty
+from std_msgs.msg import String
 
 if os.environ["ROBOT_NAME"]=="2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
@@ -41,6 +42,8 @@ else:
 
 if __name__=="__main__":
     rospy.init_node("kt_api_testing")
+    pub = rospy.Publisher('log_KTframe', String, queue_size=10)
+
     print "Please enter a bagfile name."
     filename = raw_input()
     if filename == "":
@@ -135,8 +138,10 @@ if __name__=="__main__":
         elif r=='l':
             k.lock_arm()
         elif r=='c':
-            k.close_gripper()
+            pub.publish("Close gripper")
+            k.close_gripper()           
         elif r=='o':
+            pub.publish("Open gripper")
             k.open_gripper()
         elif r=='a':
             try:
@@ -145,8 +150,29 @@ if __name__=="__main__":
                 print "Couldn't freeze frames; is freeze frame started from hlpr_manipulation utils?"
         elif r=='q':
             break
-        else:
+        
+        elif r=='1':
+            pub.publish("Recorded keyframe: Step 1 Reaching")
             k.write_kf(r)
+        elif r=='2':
+            pub.publish("Recorded keyframe: Step 2 Grasping")
+            k.write_kf(r)
+        elif r=='3':
+            pub.publish("Recorded keyframe: Step 3 Transport")
+            k.write_kf(r)
+        elif r=='4':
+            pub.publish("Recorded keyframe: Step 4 Pouring/Release")
+            k.write_kf(r)
+        elif r=='5':
+            pub.publish("Recorded keyframe: Step 5 Return")
+            k.write_kf(r)
+        elif r=='6':
+            pub.publish("Recorded keyframe: Step 6 Release")
+            k.write_kf(r)
+        else:
+            pub.publish("Recorded keyframe")
+            k.write_kf(r)
+            
         
     k.end()
     k.stop_tf_threads()

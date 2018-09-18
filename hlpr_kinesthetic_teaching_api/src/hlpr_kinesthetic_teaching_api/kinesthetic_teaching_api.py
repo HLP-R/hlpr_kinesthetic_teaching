@@ -425,7 +425,7 @@ class KTInterface(object):
 
         rospy.loginfo("Topic monitor setup complete")
 
-        if using_real_arm:
+        """if using_real_arm:
             rospy.loginfo("Waiting for arm services")
             rospy.wait_for_service(self.ARM_RELEASE_SERVICE)
             rospy.wait_for_service(self.ARM_LOCK_SERVICE)
@@ -443,7 +443,10 @@ class KTInterface(object):
         else:
             self.arm_release_srv = lambda: None
             self.arm_lock_srv = lambda: None
-
+        """
+        self.arm_release_srv = lambda: None
+        self.arm_lock_srv = lambda: None
+        
         rospy.loginfo("Ready to record keyframes.")
 
 
