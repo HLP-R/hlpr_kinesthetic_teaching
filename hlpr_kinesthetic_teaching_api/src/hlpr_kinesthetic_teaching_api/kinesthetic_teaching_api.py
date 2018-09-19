@@ -353,10 +353,10 @@ class KTInterface(object):
     JOINT_MOVE_THRESH = 0.01  # 0.01radians ~= 0.57degrees
     XYZ_MOVE_THRESH = 0.005  # 5mm
     QUAT_MOVE_THRESH = 0.01 # ???
-    ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
-    ARM_LOCK_SERVICE = '/j2s7s300_driver/in/stop_force_control'
-    ARM_FRAME = 'j2s7s300_link_base'
-    EEF_FRAME = 'j2s7s300_ee_link'
+    ARM_RELEASE_SERVICE = '/right_arm_driver/in/start_force_control'
+    ARM_LOCK_SERVICE = '/right_arm_driver/in/stop_force_control'
+    ARM_FRAME = 'right_link_base'
+    EEF_FRAME = 'right_ee_link'
 
     def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None):
         if not os.path.isdir(os.path.expanduser(save_dir)):
@@ -425,7 +425,7 @@ class KTInterface(object):
 
         rospy.loginfo("Topic monitor setup complete")
 
-        """if using_real_arm:
+        if using_real_arm:
             rospy.loginfo("Waiting for arm services")
             rospy.wait_for_service(self.ARM_RELEASE_SERVICE)
             rospy.wait_for_service(self.ARM_LOCK_SERVICE)
@@ -443,9 +443,9 @@ class KTInterface(object):
         else:
             self.arm_release_srv = lambda: None
             self.arm_lock_srv = lambda: None
-        """
-        self.arm_release_srv = lambda: None
-        self.arm_lock_srv = lambda: None
+        
+        #self.arm_release_srv = lambda: None
+        #self.arm_lock_srv = lambda: None
         
         rospy.loginfo("Ready to record keyframes.")
 
