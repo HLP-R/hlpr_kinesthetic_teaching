@@ -122,21 +122,18 @@ class KTSegment(object):
 
             if rel_frame is None:
                 rel_frame = self.ARM_FRAME
-            else:
-                rel_frame = rel_frame
 
             eef_key = EEF_PREFIX+rel_frame
             if eef_key in step:
                 eef_msg = step[EEF_PREFIX+rel_frame]
                 target = eef_msg
                 self.end = target
-                self.rel_frame = rel_frame
             else:
                 rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(eef_key, self.dt))
                 rospy.logwarn("Available topics are: " + str(step.keys()))
-                rospy.logwarn("Not setting the end pose. If it is not set manually, errors will occur.")
+                rospy.logwarn("Not setting the end pose (but setting the rel_frame). If it is not set manually, errors will occur.")
+            self.rel_frame = rel_frame
 
-        print(step)
         if self.GRIPPER_TOPIC in step:
             print(type(step[self.GRIPPER_TOPIC]))
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
@@ -322,12 +319,8 @@ class KTSegment(object):
 
 class HashableKTSegment(KTSegment):
 
-    def __init__(self, planner, gripper_interface, frames, delta_t,
-                 prev_seg = None, next_seg = None,
-                 is_traj = False, is_joints = True, gripper_open=None):
-        super(HashableKTSegment, self).__init__(planner, gripper_interface,frames,
-                                                delta_t, prev_seg, next_seg, is_traj,
-                                                is_joints, gripper_open)
+    def __init__(self, **kwargs):
+        super(HashableKTSegment, self).__init__(**kwargs)
 
     def __eq__(self, other):
         return self.end.pose.position == other.end.pose.position and \
@@ -521,23 +514,22 @@ class KTInterface(object):
         bag = rosbag.Bag(self.save_name, "w")
         if self.first is None:
             self.first = self.segments[0]
-        next_seg = self.first
+        current_seg = self.first
 
-        prev_time = rospy.Time.now()
-        while next_seg is not None:
-            for frame in next_seg.frames:
-                max_time = rospy.Duration(0.0)
-                for msg_info in frame:
-                    topic = msg_info[0]
-                    time = msg_info[2]+prev_time+next_seg.dt
-                    if msg_info[2] + next_seg.dt > max_time:
-                        max_time = msg_info[2] + next_seg.dt
-                    msg = msg_info[1]
-                    if topic == "{}{}".format(EEF_PREFIX, next_seg.rel_frame):
-                        bag.write("{}relative".format(EEF_PREFIX), msg, t=time)
-                    bag.write(topic, msg, t=time)
-            prev_time = prev_time + max_time
-            next_seg = next_seg.next_seg
+        prev_max_time = rospy.Time(0)
+        while current_seg is not None:
+            for frame in current_seg.frames:
+                max_time = prev_max_time
+                for topic, msg, raw_time in frame:
+                    this_msg_time = raw_time + current_seg.dt
+                    if this_msg_time > max_time:
+                        max_time = this_msg_time
+
+                    if topic == "{}{}".format(EEF_PREFIX, current_seg.rel_frame):
+                        bag.write("{}relative".format(EEF_PREFIX), msg, t=this_msg_time)
+                    bag.write(topic, msg, t=this_msg_time)
+            prev_max_time = max_time
+            current_seg = current_seg.next_seg
         bag.close()
 
     def record_keyframe(self, frame_id=None):
@@ -677,8 +669,6 @@ class KTInterface(object):
             if msg_class is None:
                 # fallback attempts
                 if topic.startswith(EEF_PREFIX):
-                    rospy.loginfo("Message on topic {} begins with {}, so interpreting it as"
-                                   "a PoseStamped.".format(topic, EEF_PREFIX))
                     msg_class = PoseStamped
                 else:
                     rospy.logwarn("Message on topic {} could not have their type inferred because they are not found "
