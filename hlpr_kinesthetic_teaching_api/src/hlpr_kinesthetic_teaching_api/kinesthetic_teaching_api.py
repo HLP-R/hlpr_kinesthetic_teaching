@@ -39,6 +39,7 @@ import roslib
 import rospkg
 import rospy
 import tf
+import tf2_ros
 
 import cPickle
 
@@ -48,6 +49,7 @@ from kinova_msgs.srv import Start, Stop
 from geometry_msgs.msg import PoseStamped, Point, Pose, Quaternion
 
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Bool
 
 # used by both KTSegment and KTInterface
 EEF_PREFIX = 'eef_pose_'
@@ -62,6 +64,7 @@ class KTSegment(object):
 
     if os.environ['ROBOT_NAME'] == "2d_arm":
         EEF_TOPIC = "/sim_arm/eef_pose"
+        ARM_FRAME = None
     else:
         EEF_FRAME = "j2s7s300_ee_link"
         ARM_FRAME = "j2s7s300_link_base"
@@ -92,6 +95,7 @@ class KTSegment(object):
         self.planner = planner
         self.gripper = gripper_interface
         self.frames = frames
+        self.rel_frame = self.ARM_FRAME
 
         if self.is_traj == True:
             rospy.logwarn("Trajectory control not implemented; only loading last frame")
@@ -135,7 +139,7 @@ class KTSegment(object):
             self.rel_frame = rel_frame
 
         if self.GRIPPER_TOPIC in step:
-            print(type(step[self.GRIPPER_TOPIC]))
+            #print(type(step[self.GRIPPER_TOPIC]))
             self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
         else:
             if gripper_open is None:
@@ -171,8 +175,8 @@ class KTSegment(object):
         try:
             listener.waitForTransform(self.ARM_FRAME, self.end.header.frame_id,
                                       rospy.Time(0), rospy.Duration(5))
-        except tf.TransformException as e:
-            rospy.logerror("Couldn't change from frame {} to arm frame. Keeping original frame. (Error: {})".format(self.end.header.frame_id, e))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, tf2_ros.TransformException) as e:
+            rospy.logerr("Couldn't change from frame {} to arm frame. Keeping original frame. (Error: {})".format(self.end.header.frame_id, e))
             return
 
         try:
@@ -258,16 +262,23 @@ class KTSegment(object):
             rospy.logerr("Planning not yet implemented for trajectory segments")
             return None
 
-        if self.prev_seg is not None:
+        if self.prev_seg is not None and self.is_joints:
             start = self.prev_seg.get_end_state()
         else:
             start = None
 
+        if self.is_joints:
+            what_kind = "joint"
+        else:
+            what_kind = "eef"
+            
+        rospy.loginfo("Making {} plan.".format(what_kind))
         plan = self.planner.plan_pose(target=self.end,
                                       is_joint_pos = self.is_joints,
                                       starting_config=start)
 
 
+        
         if plan is None or len(plan.joint_trajectory.points)==0:
             rospy.logwarn("No plan found. Trying again...")
             plan = self.planner.plan_pose(target=self.end,
@@ -299,22 +310,15 @@ class KTSegment(object):
             return s
 
         if self.is_joints:
-            end = abbr(self.get_end_joints())
+            end = abbr(self.end)
+            header = "(joints)"
         else:
             end = abbr_pose(self.end)
+            header = self.end.header.frame_id
+            
+        text = "["+", ".join(map(lambda p: "{:<4}".format(p), end))+"]"
 
-        if self.prev_seg is not None:
-            if self.prev_seg.is_joints:
-                start = abbr(self.get_start_joints())
-            else:
-                start = abbr_pose(self.prev_seg.end)
-        else:
-            start = ["    " for e in end]
-
-
-        text = "["+",".join(map(lambda p: "{:<4}->{:<4}".format(p[0],p[1]), zip(start,end)))+"]"
-
-        r = "<KTSegment {} {}>".format(self.end.header.frame_id, text)
+        r = "<KTSegment {} {}>".format(header, text)
         return r
 
 class HashableKTSegment(KTSegment):
@@ -386,7 +390,6 @@ class KTInterface(object):
         self.msg_type_lookup={}
         self.recording = False
         self.monitor_tfs = True
-        self.pause_tf_record = False
         self.record_traj = False
         self.last_time = None
         self.segment_pointer = None
@@ -425,40 +428,16 @@ class KTInterface(object):
             self.monitor_frames = {}
             object_frames.append(self.ARM_FRAME)
             for oframe in object_frames:
-                self.monitor_frames["{}}{}".format(EEF_PREFIX, oframe)] = (oframe, self.EEF_FRAME)
+                self.monitor_frames["{}{}".format(EEF_PREFIX, oframe)] = (oframe, self.EEF_FRAME)
             self.tf_thread = threading.Thread(target=self.monitor_tf_cb)
             self.tf_thread.start()
 
-            self.fixed_tfs={}
-            self.tf_fixed_thread = threading.Thread(target=self.fixed_tf_pub)
-            self.tf_fixed_thread.start()
+
         else:
             self.arm_release_srv = lambda: None
             self.arm_lock_srv = lambda: None
 
         rospy.loginfo("Ready to record keyframes.")
-
-    def fixed_tf_pub(self):
-        broadcaster = tf.TransformBroadcaster()
-
-        while not rospy.is_shutdown() and self.monitor_tfs:
-            for link, transform in self.fixed_tfs.items():
-                trans,rot = transform
-                broadcaster.sendTransform(trans, rot, rospy.Time.now(), link+"_fixed", self.ARM_FRAME)
-
-    def take_tf_snapshot(self):
-        listener = tf.TransformListener()
-        for topic,links in self.monitor_frames.items():
-            print topic, links
-            tracked_frame, eef_frame = links
-            try:
-                trans, rot = listener.lookupTransform(self.ARM_FRAME, tracked_frame, rospy.Time())
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-                rospy.logwarn("Couldn't find transform for tf {}; no static transform will be produced.".format(tracked_frame))
-                continue
-            self.fixed_tfs[tracked_frame]=(trans,rot)
-
-            #TODO: add fixed frames to list of frames being saved in bag
 
 
     def monitor_tf_cb(self):
@@ -654,7 +633,7 @@ class KTInterface(object):
         self.monitor_tfs = False
 
 
-    def load_bagfile(self, bagfile, load_joints=True):
+    def load_bagfile(self, bagfile, load_joints=None):
         bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
         msgs = []
         for topic, msg, time in bag.read_messages():
@@ -935,8 +914,9 @@ class KTInterface(object):
             self.segments.append(new_segment)
             saved = True
         else:
-            should_make_new = False
-            if new_segment.is_joints or prev_seg.is_joints:
+            should_make_new = True
+            #only check if both are the same type
+            if new_segment.is_joints and prev_seg.is_joints:
                 target = new_segment.get_end_joints()
                 last_target = prev_seg.get_end_joints()
 
@@ -946,7 +926,7 @@ class KTInterface(object):
                     if  d1 > dist:
                         dist = d1
                 should_make_new = dist > self.JOINT_MOVE_THRESH
-            else:
+            elif (not new_segment.is_joints) and (not prev_seg.is_joints):
                 # both are EEF keyframes
                 target = new_segment.end
                 last_target = prev_seg.end
@@ -978,7 +958,7 @@ class KTInterface(object):
 
         return saved
 
-    def load_frames(self, frames, load_joints=True):
+    def load_frames(self, frames, load_joints=None):
         if len(frames)==0:
             rospy.logwarn("No frames to load! Clearing segments...")
 
@@ -1000,13 +980,22 @@ class KTInterface(object):
             else:
                 time = new_time
 
-            delta_t = new_time-time
-            for i in range(len(frame)):
-                old_item = frame[i]
-                #the following only works for keyframes, not trajectories
-                new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
 
-            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_joints, rel_frame="relative")
+            if load_joints is None:
+                load_kf_joints = True
+                for msg in frame:
+                    if msg[0]=="is_joint_kf":
+                        load_kf_joints = msg[1].data
+            else:
+                load_kf_joints = load_joints        
+            delta_t = new_time-time
+            #for i in range(len(frame)):
+            #    old_item = frame[i]
+            #    #the following only works for keyframes, not trajectories
+            #    new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
+
+                
+            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_kf_joints, rel_frame="relative")
             if new_segment is None:
                 continue
 
