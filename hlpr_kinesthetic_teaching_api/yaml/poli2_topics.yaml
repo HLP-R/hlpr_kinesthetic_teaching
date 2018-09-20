@@ -13,3 +13,6 @@ msg_type: object_location/Objects
 ---
 topic: joint_states
 msg_type: sensor_msgs/JointState
+---
+topic: is_joint_kf
+msg_type: std_msgs/Bool

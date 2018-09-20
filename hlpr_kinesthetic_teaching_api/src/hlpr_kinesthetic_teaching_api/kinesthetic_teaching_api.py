@@ -70,7 +70,7 @@ class KTSegment(object):
         ARM_FRAME = "j2s7s300_link_base"
 
     if os.environ['ROBOT_NAME'] == "poli2":
-        GRIPPER_TOPIC = "/gripper/stat"
+        GRIPPER_TOPIC = "gripper/stat"
     elif os.environ['ROBOT_NAME'] == "2d_arm":
         GRIPPER_TOPIC = "/sim_arm/gripper_state"
     else:
@@ -130,20 +130,31 @@ class KTSegment(object):
                 rel_frame = rel_frame
 
             eef_key = EEF_PREFIX+rel_frame
+            default_eef_key = EEF_PREFIX+"relative"
             if eef_key in step:
-                eef_msg = step[EEF_PREFIX+rel_frame]
+                eef_msg = step[eef_key]
                 target = eef_msg
                 self.end = target
                 self.rel_frame = rel_frame
+            elif default_eef_key in step:
+                eef_msg = step[default_eef_key]
+                target = eef_msg
+                self.end = target
+                self.rel_frame = target.header.frame_id
             else:
                 rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(eef_key, self.dt))
                 rospy.logwarn("Available topics are: " + str(step.keys()))
                 rospy.logwarn("Not setting the end pose. If it is not set manually, errors will occur.")
 
         #print(step)
-        if self.GRIPPER_TOPIC in step:
-            #print(type(step[self.GRIPPER_TOPIC]))
-            self.gripper_open = step[self.GRIPPER_TOPIC].position > self.GRIPPER_OPEN_THRESH
+        match = None
+        for s in step.keys():
+            if self.GRIPPER_TOPIC in s:
+                match = s
+                break
+        if match is not None:
+            self.gripper_open = step[match].requested_position > self.GRIPPER_OPEN_THRESH
+            print('gripper values: ' + str(step[match].requested_position), str(self.GRIPPER_OPEN_THRESH))
         else:
             if gripper_open is None:
                 if self.gripper is None:
@@ -317,7 +328,10 @@ class KTSegment(object):
             header = "(joints)"
         else:
             end = abbr_pose(self.end)
-            header = self.end.header.frame_id
+            if self.rel_frame is None:
+                header = self.end.header.frame_id
+            else:
+                header = self.rel_frame
             
         text = "["+", ".join(map(lambda p: "{:<4}".format(p), end))+"]"
 
@@ -658,7 +672,7 @@ class KTInterface(object):
             if msg_class is None:
                 # fallback attempts
                 if topic.startswith(EEF_PREFIX):
-                    rospy.loginfo("Message on topic {} begins with {}, so interpreting it as"
+                    rospy.loginfo("Message on topic {} begins with {}, so interpreting it as "
                                    "a PoseStamped.".format(topic, EEF_PREFIX))
                     msg_class = PoseStamped
                 else:
@@ -712,6 +726,7 @@ class KTInterface(object):
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
         self.lock_arm()
+        print("self.is_joints = " + str(self.is_joints))
         first_seg = KTSegment(self.planner, self.gripper, segment.frames,
                               segment.dt,
                               is_traj = False,
@@ -994,20 +1009,26 @@ class KTInterface(object):
 
 
             if load_joints is None:
+                joint_topic = "is_joint_kf"
                 load_kf_joints = True
-                for msg in frame:
-                    if msg[0]=="is_joint_kf":
-                        load_kf_joints = msg[1].data
+                for topic, msg, _ in frame:
+                    if "is_joint_kf" == topic:
+                        load_kf_joints = msg.data
+                        rospy.loginfo("loaded {} as {}".format(joint_topic, str(msg.data)))
+                if load_kf_joints is None:
+                    rospy.logwarn("load_joints was not supplied, nor was it found in any of the bagfile messages (on the {} topic)."
+                                  "defaulting load_joints True".format(joint_topic))
+                    load_kf_joints = True
             else:
-                load_kf_joints = load_joints        
+                load_kf_joints = load_joints
             delta_t = new_time-time
             #for i in range(len(frame)):
             #    old_item = frame[i]
             #    #the following only works for keyframes, not trajectories
             #    new_item = (frame[i][0],frame[i][1],rospy.Duration(0.0))
 
-                
-            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_kf_joints, rel_frame="relative")
+            print("load_kf_joints is " + str(load_kf_joints))
+            new_segment = KTSegment(self.planner, self.gripper, [frame], delta_t, is_joints=load_kf_joints)
             if new_segment is None:
                 continue
 
