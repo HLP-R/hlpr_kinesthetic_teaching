@@ -123,28 +123,27 @@ class KTSegment(object):
                            for joint in arm_joints])
             self.end = target
         else:
-
             if rel_frame is None:
-                rel_frame = self.ARM_FRAME
-
-            eef_key = EEF_PREFIX+rel_frame
-            default_eef_key = EEF_PREFIX+"relative"
-            if eef_key in step:
-                eef_msg = step[eef_key]
-                target = eef_msg
-                self.end = target
-                self.rel_frame = rel_frame
-            elif default_eef_key in step:
-                eef_msg = step[default_eef_key]
-                target = eef_msg
-                self.end = target
+                target = step[EEF_PREFIX+"relative"]
                 self.rel_frame = target.header.frame_id
+                self.end = target
             else:
-                rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(eef_key, self.dt))
-                rospy.logwarn("Available topics are: " + str(step.keys()))
-                rospy.logwarn("Not setting the end pose (but setting the rel_frame). If it is not set manually, errors will occur.")
-            self.rel_frame = rel_frame
+                eef_key = EEF_PREFIX+rel_frame
+                if eef_key in step:
+                    self.rel_frame = rel_frame
+                    target = step[eef_key]
+                    self.end = target
+                elif EEF_PREFIX+self.ARM_FRAME in step:
+                    target = step[EEF_PREFIX+self.ARM_FRAME]
+                    self.rel_frame = self.ARM_FRAME
+                    self.end = target
+                else:
+                    rospy.logwarn("EEF topic {} not found at dt {}. Check your bagfile!".format(eef_key, self.dt))
+                    rospy.logwarn("Available topics are: " + str(step.keys()))
+                    rospy.logwarn("Not setting the end pose or rel_frame. If they are not set manually, errors will occur.")
 
+
+                
         match = None
         for s in step.keys():
             if self.GRIPPER_TOPIC in s:
@@ -509,7 +508,7 @@ class KTInterface(object):
             self.first = self.segments[0]
         current_seg = self.first
 
-        prev_max_time = rospy.Time(0)
+        prev_max_time = rospy.Duration(0)
         while current_seg is not None:
             for frame in current_seg.frames:
                 max_time = prev_max_time
@@ -541,6 +540,9 @@ class KTInterface(object):
             next_seg = None
         for topic in self.msg_store:
             frame.append((topic, copy.deepcopy(self.msg_store[topic]), rospy.Duration(0.0)))
+
+        frame.append(("is_joint_kf", Bool(data=self.is_joints), rospy.Duration(0.0)))
+            
         new_seg = KTSegment(self.planner, self.gripper, [frame],
                             dt, prev_seg = prev_seg,
                             next_seg = next_seg,

@@ -50,7 +50,7 @@ if __name__=="__main__":
 
     freezer = rospy.ServiceProxy('freeze_frames', Empty)
     
-    k.load_bagfile(sys.argv[1])
+    k.load_bagfile(sys.argv[1], False)
     
     k.move_to_keyframe(k.segment_pointer)
     freezer()
