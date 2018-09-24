@@ -31,7 +31,7 @@
 import rospy
 import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
-from std_srvs.srv import Empty
+from hlpr_manipulation_utils.srv import FreezeFrame, FreezeFrameRequest
 
 if os.environ["ROBOT_NAME"]=="2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
@@ -52,7 +52,7 @@ if __name__=="__main__":
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(),False)
 
-    freezer = rospy.ServiceProxy('freeze_frames', Empty)
+    freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
         
     rospy.sleep(0.5)
     k.release_arm()
@@ -140,7 +140,7 @@ if __name__=="__main__":
             k.open_gripper()
         elif r=='a':
             try:
-                freezer()
+                freezer(FreezeFrameRequest.TOGGLE)
             except rospy.ServiceException as e:
                 print "Couldn't freeze frames; is freeze frame started from hlpr_manipulation utils?"
         elif r=='q':

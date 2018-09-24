@@ -33,6 +33,7 @@ import os
 import sys
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 from std_srvs.srv import Empty
+from hlpr_manipulation_utils.srv import FreezeFrame, FreezeFrameRequest
 
 if os.environ["ROBOT_NAME"]=="2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
@@ -48,13 +49,16 @@ if __name__=="__main__":
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(), is_joints=False)
 
-    freezer = rospy.ServiceProxy('freeze_frames', Empty)
+    freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
     
     k.load_bagfile(sys.argv[1], False)
     
+    freezer(FreezeFrameRequest.UNFREEZE)
+    rospy.sleep(2.0)
+
     k.move_to_keyframe(k.segment_pointer)
-    freezer()
+    freezer(FreezeFrameRequest.FREEZE)
     
     k.move_to_end()
-    freezer()
+    freezer(FreezeFrameRequest.UNFREEZE)
     k.stop_tf_threads()
