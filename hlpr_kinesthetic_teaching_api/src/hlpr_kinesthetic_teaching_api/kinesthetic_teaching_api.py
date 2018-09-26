@@ -50,6 +50,7 @@ from geometry_msgs.msg import PoseStamped, Point, Pose, Quaternion
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
+from robotiq_85_msgs.msg import GripperStat
 
 # used by both KTSegment and KTInterface
 EEF_PREFIX = 'eef_pose_'
@@ -114,14 +115,15 @@ class KTSegment(object):
             if not self.JOINT_TOPIC in step:
                 rospy.logwarn("Joint topic {} not found at dt {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
 
-            joint_msg = step[self.JOINT_TOPIC]
-            if self.planner is None:
-                raise RuntimeError("cannot interpret joint keyframe segment because no planner was set.")
-            arm_joints = self.planner.group[0].get_active_joints()
-            target = dict([(joint,
-                            joint_msg.position[joint_msg.name.index(joint)])
-                           for joint in arm_joints])
-            self.end = target
+            else:
+                joint_msg = step[self.JOINT_TOPIC]
+                if self.planner is None:
+                    raise RuntimeError("cannot interpret joint keyframe segment because no planner was set.")
+                arm_joints = self.planner.group[0].get_active_joints()
+                target = dict([(joint,
+                                joint_msg.position[joint_msg.name.index(joint)])
+                               for joint in arm_joints])
+                self.end = target
         else:
             if rel_frame is None:
                 target = step[EEF_PREFIX+"relative"]
@@ -301,7 +303,7 @@ class KTSegment(object):
 
         return self.plan
 
-    def __repr__(self):
+    def as_dict(self):
         def abbr(joints):
             s = sorted(joints.items(), key=lambda j:j[0])
             s = map(lambda p: round(p[1],2),s)
@@ -316,22 +318,32 @@ class KTSegment(object):
                   pose.pose.orientation.z,
                   pose.pose.orientation.w]
 
-            s = map(lambda p: round(p,2),s)
+            #s = map(lambda p: round(p,2),s)
             return s
 
         if self.is_joints:
             end = abbr(self.end)
-            header = "(joints)"
+            header = "joints"
         else:
             end = abbr_pose(self.end)
             if self.rel_frame is None:
                 header = self.end.header.frame_id
             else:
                 header = self.rel_frame
-            
-        text = "["+", ".join(map(lambda p: "{:<4}".format(p), end))+"]"
 
-        r = "<KTSegment {} {}>".format(header, text)
+        return {"type":header, "pose":end}
+    
+    def __repr__(self):
+        arr = self.as_dict()
+            
+        text = "["+", ".join(map(lambda p: "{:<4}".format(p), arr["pose"]))+"]"
+
+        if self.gripper_open:
+            gripper_st = "open"
+        else:
+            gripper_st = "closed"
+            
+        r = "<KTSegment {} {} {}>".format(gripper_st, arr["type"], text)
         return r
 
 class HashableKTSegment(KTSegment):
@@ -340,19 +352,33 @@ class HashableKTSegment(KTSegment):
         super(HashableKTSegment, self).__init__(**kwargs)
 
     def __eq__(self, other):
-        return self.end.pose.position == other.end.pose.position and \
+        return hash(self)==hash(other)
+        '''return self.end.pose.position == other.end.pose.position and \
                self.end.pose.orientation == other.end.pose.orientation and \
                self.dt == other.dt and \
                self.is_joints == other.is_joints and \
                self.gripper_open == other.gripper_open and \
                self.is_traj == other.is_traj and \
-               self.frames == other.frames
+               self.frames == other.frames'''
 
     def __hash__(self):
         # print("hashable")
-        return hash((self.end.pose.position.x, self.end.pose.position.y,
-                     self.end.pose.position.z))
+        if self.end.pose.orientation.x < 0:
+            return hash((round(self.end.pose.position.x,6), round(self.end.pose.position.y,6),
+                         round(self.end.pose.position.z,6), -round(self.end.pose.orientation.x,6),
+                         -round(self.end.pose.orientation.y,6), -round(self.end.pose.orientation.z,6),
+                         -round(self.end.pose.orientation.w,6), self.is_joints, self.gripper_open))
+        else:
+            return hash((round(self.end.pose.position.x,6), round(self.end.pose.position.y,6),
+                         round(self.end.pose.position.z,6), round(self.end.pose.orientation.x,6),
+                         round(self.end.pose.orientation.y,6), round(self.end.pose.orientation.z,6),
+                         round(self.end.pose.orientation.w,6), self.is_joints, self.gripper_open))
+        
 
+    @classmethod
+    def FromKTSegment(self, seg):
+        seg.__class__ = HashableKTSegment
+        return seg
 
 class KTInterface(object):
     MIN_DELTA_T = rospy.Duration(0.1)
@@ -380,7 +406,7 @@ class KTInterface(object):
             default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
                             +'/yaml/poli1_topics.yaml')
 
-
+        rospy.loginfo("Getting parameters...")
         default_traj_rate = 3
         yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
 
@@ -411,6 +437,7 @@ class KTInterface(object):
         self.segments = []
         self.planner = planner
 
+        rospy.loginfo("Setting up display publisher")
         self.display_trajectory_publisher = rospy.Publisher(
             '/move_group/display_planned_path',
             DisplayTrajectory, queue_size=1)
@@ -663,11 +690,22 @@ class KTInterface(object):
 
             if msg_class is None:
                 # fallback attempts
+                # a few types we know about:
+                topic_mapping = {"_sensor_msgs__JointState": JointState,
+                                 "_robotiq_85_msgs__GripperStat": GripperStat,
+                                 "_std_msgs__Bool": Bool,
+                                 "_geometry_msgs__Pose_stamped": PoseStamped
+                                 }
+
+                type_string = str(type(msg)).split(".")[1].split("'")[0]
+                
                 if topic.startswith(EEF_PREFIX):
                     # rospy.loginfo("Message on topic {} begins with {}, so interpreting it as "
                     #                "a PoseStamped.".format(topic, EEF_PREFIX))
 
                     msg_class = PoseStamped
+                elif type_string in topic_mapping:
+                    msg_class = topic_mapping[type_string]
                 else:
                     rospy.logwarn("Message on topic {} could not have their type inferred because they are not found "
                                   "in the yaml file. Using provided type {}".format(topic, type(msg)))
