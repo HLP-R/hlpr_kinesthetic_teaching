@@ -498,12 +498,12 @@ class KTInterface(object):
             self.segments.remove(self.segment_pointer)
             self.segment_pointer = self.segment_pointer.prev_seg
 
-    def write_bagfile(self):
+    def write_bagfile(self, save_name):
         if len(self.segments)==0:
             rospy.logwarn("No frames recorded! Doing nothing.")
             return
 
-        bag = rosbag.Bag(self.save_name, "w")
+        bag = rosbag.Bag(os.path.join(self.save_dir, save_name), "w")
         if self.first is None:
             self.first = self.segments[0]
         current_seg = self.first
@@ -593,12 +593,18 @@ class KTInterface(object):
         self.segment_pointer = self.segments[segment_idx]
 
 
-    def start(self, name, start_with_traj=False, is_joints = True):
-        self.clear_frames()
+    def initialize(self, name, is_joints = True):
         self.is_joints = is_joints
         self.recording = True
         self.last_time = rospy.Time.now()
-        self.segment_pointer = None
+
+        if len(self.segments)==0:
+            self.first = None
+            self.segment_pointer = None
+        else:
+            self.first = self.segments[0]
+            self.segment_pointer = self.first
+        
         if name[-4:]==".pkl":
             filename = name+".bag"
         elif name[-4:]==".bag":
@@ -607,13 +613,9 @@ class KTInterface(object):
             filename = name+".bag"
         full_save_path = self.save_dir+"/"+ filename
         if os.path.isfile(full_save_path):
-            rospy.logerr("Saving file exists! Exit with Ctrl-C before 'end' is called to avoid overwriting your data")
-        self.save_name = full_save_path
+            rospy.logwarn("Target output file already exists and will be overwritten when you save")
         self.release_arm()
-        if not start_with_traj:
-            self.record_keyframe()
-        else:
-            self.start_traj_record()
+
 
     def stop_traj_record(self):
         self.record_traj = False
@@ -640,9 +642,7 @@ class KTInterface(object):
             return
         if self.record_traj == True:
             self.stop_traj_record()
-        self.write_bagfile()
         self.recording = False
-        self.save_name = ""
         return self.segments
 
     def stop_tf_threads(self):
@@ -650,6 +650,7 @@ class KTInterface(object):
 
 
     def load_bagfile(self, bagfile, load_joints=None):
+        self.last_time = rospy.Time.now()
         bag = rosbag.Bag(os.path.expanduser(bagfile), "r")
         msgs = []
         for topic, msg, time in bag.read_messages():
@@ -1034,10 +1035,8 @@ class KTInterface(object):
         self.segment_pointer = self.segments[0]
 
 
-
-
-    def write_pkl(self):
-        cPickle.dump((self.first, self.segments), open(self.save_name, "wb"), cPickle.HIGHEST_PROTOCOL)
+    def write_pkl(self, save_name):
+        cPickle.dump((self.first, self.segments), open(os.path.join(self.save_dir, save_name), "wb"), cPickle.HIGHEST_PROTOCOL)
 
     def load_pkl(self, pkl_file):
         with open(pkl_file, "rb") as filename:
