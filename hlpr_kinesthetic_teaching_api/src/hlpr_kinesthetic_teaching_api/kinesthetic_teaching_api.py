@@ -318,7 +318,7 @@ class KTSegment(object):
                   pose.pose.orientation.z,
                   pose.pose.orientation.w]
 
-            #s = map(lambda p: round(p,2),s)
+            s = map(lambda p: round(p,2),s)
             return s
 
         if self.is_joints:
@@ -758,7 +758,6 @@ class KTInterface(object):
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
         self.lock_arm()
-        print("self.is_joints = " + str(self.is_joints))
         first_seg = KTSegment(self.planner, self.gripper, segment.frames,
                               segment.dt,
                               is_traj = False,
@@ -766,10 +765,9 @@ class KTInterface(object):
         plan = first_seg.get_plan()
         success = False
         if plan is not None:
-            success = self.planner.move_robot(plan)
-        if success:
             self.set_gripper(self.segment_pointer.gripper_open)
-        else:
+            success = self.planner.move_robot(plan)
+        if not success:
             rospy.logerr("Error moving to segment {}.".format(segment))
         return success
 
@@ -784,7 +782,7 @@ class KTInterface(object):
             rospy.logwarn("No keyframe to move to! Doing nothing.")
             return
 
-        if not self.at_seg_pointer():
+        if self.segment_pointer.is_joints and not self.at_seg_pointer():
             rospy.logwarn("Not at the keyframe we're pointing to. Making plan to get there.")
             success = self.move_to_keyframe(self.segment_pointer)
             if not success:
@@ -795,12 +793,12 @@ class KTInterface(object):
         success = False
         plan = segment.get_plan()
         if plan is not None:
+            self.set_gripper(segment.gripper_open)
             success = self.planner.move_robot(plan)
         if not success:
                 rospy.logerr("Error moving to keyframe. Aborting.")
                 return
         else:
-            self.set_gripper(self.segment_pointer.gripper_open)
             self.segment_pointer = segment
 
     def move_backward(self):
@@ -810,14 +808,20 @@ class KTInterface(object):
             rospy.logwarn("No keyframe to move to! Doing nothing.")
             return
 
-        if not self.at_seg_pointer():
+        if self.segment_pointer.is_joints and not self.at_seg_pointer():
             rospy.logwarn("Not at the keyframe we're pointing to. Making plan to get there.")
             success = self.move_to_keyframe(self.segment_pointer)
             if not success:
                 rospy.logerr("Error moving to keyframe. Aborting.")
                 return
 
-        success = self.planner.move_robot(self.segment_pointer.get_reversed_plan())
+
+        if self.segment_pointer.is_joints:
+            success = self.planner.move_robot(self.segment_pointer.get_reversed_plan())
+        else:
+            success = self.move_to_keyframe(self.segment_pointer.prev_seg)
+
+            
         if not success:
             rospy.logerr("Error moving to keyframe. Aborting.")
             return
@@ -861,31 +865,26 @@ class KTInterface(object):
             rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
             return
 
-        if self.segment_pointer == self.first:
-            rospy.logwarn("Already at the start. Doing nothing.")
-            return
 
-        if not self.at_keyframe_target(self.segment_pointer):
+
+        if ((self.segment_pointer==self.first
+             and not self.segment_pointer.is_joints)
+            or (self.segment_pointer.is_joints
+                and not self.at_keyframe_target(self.segment_pointer))):
             rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
-
-
             success = self.move_to_keyframe(self.segment_pointer)
             if not success:
                 rospy.logerr("Unable to move to last keyframe. Aborting!")
                 return
 
-        keyframe = self.segment_pointer
-        while keyframe != self.first:
-            success = self.planner.move_robot(keyframe.get_reversed_plan())
+        if self.segment_pointer == self.first:
+            rospy.logwarn("Already at the start. Doing nothing.")
+            return
 
-            if success:
-                keyframe = keyframe.prev_seg
-                self.segment_pointer = keyframe
-                self.set_gripper(self.segment_pointer.gripper_open)
-            else:
-                rospy.logerr("Unable to move to keyframe {}. Aborting!".format(self.segment_pointer))
-                return
+        while self.segment_pointer != self.first:
+            self.move_backward()
 
+        
     def move_to_end(self):
         self.lock_arm()
 
@@ -904,40 +903,8 @@ class KTInterface(object):
             rospy.logwarn("Already at the end. Doing nothing.")
             return
 
-        if not self.at_keyframe_target(self.segment_pointer):
-            rospy.logwarn("Not at a keyframe. Moving to the last keyframe")
-            self.set_gripper(self.segment_pointer.gripper_open)
-            success = self.move_to_keyframe(self.segment_pointer)
-            if not success:
-                rospy.logerr("Unable to move to last keyframe. Aborting!")
-                return
-
-        keyframe = self.segment_pointer
-        while keyframe.next_seg is not None:
-            success = False
-            plan = keyframe.get_plan()
-            if not plan is None:
-                success  = self.planner.move_robot(plan)
-
-            if success:
-                keyframe = keyframe.next_seg
-                self.segment_pointer = keyframe
-                self.set_gripper(keyframe.gripper_open)
-            else:
-                rospy.logerr("Unable to move to last keyframe. Aborting!")
-                return
-
-        success = False
-        plan = keyframe.get_plan()
-        if not plan is None:
-            success  = self.planner.move_robot(plan)
-
-        if success:
-            self.segment_pointer = keyframe
-            self.set_gripper(keyframe.gripper_open)
-        else:
-            rospy.logerr("Unable to move to last keyframe. Aborting!")
-            return
+        while self.segment_pointer.next_seg is not None:
+            self.move_forward()
 
     def release_arm(self):
         self.arm_release_srv()
@@ -954,14 +921,14 @@ class KTInterface(object):
         self.gripper_is_open = False
 
     def set_gripper(self, gripper_open, wait = True):
+        rospy.loginfo("Setting gripper. Open is {}".format(gripper_open))
         if gripper_open and (self.gripper_is_open is None or not self.gripper_is_open):
             self.open_gripper()
         if not gripper_open and (self.gripper_is_open is None or self.gripper_is_open):
             self.close_gripper()
 
         if wait:
-            while self.gripper.is_moving() and not rospy.is_shutdown():
-                rospy.sleep(0.05)
+            rospy.sleep(1.0)
 
     def insert_segment(self, new_segment, prev_seg=None, next_seg=None):
         """

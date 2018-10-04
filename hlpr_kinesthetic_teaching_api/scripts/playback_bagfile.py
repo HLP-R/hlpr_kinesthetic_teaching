@@ -47,7 +47,7 @@ if __name__=="__main__":
     if os.environ["ROBOT_NAME"]=="2d_arm":
         k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
     else:
-        k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper(), is_joints=False)
+        k = KTInterface("~/test_bagfiles",ArmMoveIt(default_planner="PRMStarkConfigDefault"), Gripper(), is_joints=False)
 
     freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
     
