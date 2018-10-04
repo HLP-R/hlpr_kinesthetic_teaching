@@ -390,7 +390,9 @@ class KTInterface(object):
     ARM_FRAME = 'j2s7s300_link_base'
     EEF_FRAME = 'j2s7s300_ee_link'
 
-    def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None):
+    def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None, default_yaml_loc= None):
+        rospy.loginfo("Initializing KT interface")
+        rospy.loginfo("Getting save directory")
         if not os.path.isdir(os.path.expanduser(save_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(save_dir))
             rospy.logerr(errstr)
@@ -399,12 +401,16 @@ class KTInterface(object):
         self.save_dir = os.path.normpath(os.path.expanduser(save_dir))
 
 
-        if os.environ['ROBOT_NAME'] == "poli2":
-            default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
-                            +'/yaml/poli2_topics.yaml')
-        else:
-            default_yaml_loc = (rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
-                            +'/yaml/poli1_topics.yaml')
+        if default_yaml_loc is None:
+            pkg_dir = rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
+            if os.environ['ROBOT_NAME'] == "poli2":
+                rospy.loginfo("Getting yaml location for poli2...")
+                default_yaml_loc = (pkg_dir+'/yaml/poli2_topics.yaml')
+                rospy.loginfo("... location found!")
+            else:
+                rospy.loginfo("Getting yaml location for poli2...")
+                default_yaml_loc = (pkg_dir+'/yaml/poli1_topics.yaml')
+                rospy.loginfo("... location found!")
 
         rospy.loginfo("Getting parameters...")
         default_traj_rate = 3
