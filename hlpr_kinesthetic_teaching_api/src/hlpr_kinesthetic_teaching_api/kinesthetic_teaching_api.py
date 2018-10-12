@@ -390,7 +390,7 @@ class KTInterface(object):
     ARM_FRAME = 'j2s7s300_link_base'
     EEF_FRAME = 'j2s7s300_ee_link'
 
-    def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None, default_yaml_loc= None):
+    def __init__(self, save_dir, planner, gripper_interface, physical_arm=None, default_yaml_loc= None):
         rospy.loginfo("Initializing KT interface")
         rospy.loginfo("Getting save directory")
         if not os.path.isdir(os.path.expanduser(save_dir)):
@@ -438,7 +438,7 @@ class KTInterface(object):
         self.record_traj = False
         self.last_time = None
         self.segment_pointer = None
-        self.is_joints = is_joints
+        self.is_joints = None
         self.first = None
         self.segments = []
         self.planner = planner
@@ -767,7 +767,7 @@ class KTInterface(object):
         first_seg = KTSegment(self.planner, self.gripper, segment.frames,
                               segment.dt,
                               is_traj = False,
-                              is_joints = self.is_joints)
+                              is_joints = segment.is_joints)
         plan = first_seg.get_plan()
         success = False
         if plan is not None:
