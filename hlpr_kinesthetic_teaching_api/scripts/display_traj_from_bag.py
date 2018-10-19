@@ -43,7 +43,7 @@ if __name__=="__main__":
 
     pb = rospy.Publisher("/KT/display_traj", KTPlanDisplay)
     
-    k = KTInterface("~/research/poli2_segway_ws/src/seal/test/data",ArmMoveIt(), Gripper(),False)
+    k = KTInterface("~/research/poli2_segway_ws/src/seal/test/data",ArmMoveIt(), Gripper())
     
     k.load_bagfile("~/research/poli2_segway_ws/src/seal/test/data/eeftest.bag",
                     load_joints=False)

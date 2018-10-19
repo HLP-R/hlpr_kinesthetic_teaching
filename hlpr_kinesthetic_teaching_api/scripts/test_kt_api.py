@@ -98,9 +98,9 @@ if __name__=="__main__":
 
 
     if os.environ["ROBOT_NAME"]=="2d_arm":
-        k = KTInterface(default_save_dir,Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
+        k = KTInterface(default_save_dir,Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"))
     else:
-        k = KTInterface(default_save_dir,ArmMoveIt(), Gripper(),False)
+        k = KTInterface(default_save_dir,ArmMoveIt(), Gripper())
 
     freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
         
@@ -145,17 +145,21 @@ if __name__=="__main__":
         k.record_keyframe()
 
     pause_tf_record = False
-    while True:
+    while not rospy.is_shutdown():
         
         print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
         print "Current frames: "
-        for s in k.segments:
+        s = k.first
+        if s is None:
+            s = k.segments[0]
+        while s is not None:
             if k.segment_pointer==s:
                 pref = " >"
             else:
                 pref = "  "
                 
             print pref, s
+            s = s.next_seg
         print
         
         if k.is_joints:
