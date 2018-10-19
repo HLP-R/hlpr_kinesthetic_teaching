@@ -53,7 +53,7 @@ if __name__=="__main__":
     if os.environ["ROBOT_NAME"]=="2d_arm":
         k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
     else:
-        k = KTInterface("~/test_bagfiles",ArmMoveIt(eef_frame='right_ee_link'), Gripper(),False)
+        k = KTInterface("~/test_bagfiles",ArmMoveIt(planning_frame='right_link_base', eef_frame='right_ee_link', _arm_name='right'), Gripper(),False)
 
     freezer = rospy.ServiceProxy('freeze_frames', Empty)
         
@@ -119,6 +119,7 @@ if __name__=="__main__":
 
         
         r = raw_input()
+        print('raw_input:', r)
         if r == 'h':
             k.move_to_keyframe(k.segment_pointer)
         elif r=='d':
@@ -153,23 +154,24 @@ if __name__=="__main__":
         
         elif r=='1':
             pub.publish("Recorded keyframe: Step 1 Reaching")
-            k.write_kf(r)
+            k.write_kf('')
         elif r=='2':
             pub.publish("Recorded keyframe: Step 2 Grasping")
-            k.write_kf(r)
+            k.write_kf('')
         elif r=='3':
             pub.publish("Recorded keyframe: Step 3 Transport")
-            k.write_kf(r)
+            k.write_kf('')
         elif r=='4':
             pub.publish("Recorded keyframe: Step 4 Pouring/Release")
-            k.write_kf(r)
+            k.write_kf('')
         elif r=='5':
             pub.publish("Recorded keyframe: Step 5 Return")
-            k.write_kf(r)
+            k.write_kf('')
         elif r=='6':
             pub.publish("Recorded keyframe: Step 6 Release")
-            k.write_kf(r)
+            k.write_kf('')
         else:
+            print('here')
             pub.publish("Recorded keyframe")
             k.write_kf(r)
             
