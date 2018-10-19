@@ -66,8 +66,8 @@ class KTSegment(object):
         EEF_TOPIC = "/sim_arm/eef_pose"
         ARM_FRAME = None
     else:
-        EEF_FRAME = "j2s7s300_ee_link"
-        ARM_FRAME = "j2s7s300_link_base"
+        EEF_FRAME = "right_ee_link"
+        ARM_FRAME = "right_link_base"
 
     if os.environ['ROBOT_NAME'] == "poli2":
         GRIPPER_TOPIC = "/gripper/stat"
@@ -111,6 +111,7 @@ class KTSegment(object):
                 step[topic]=msg[1]
 
         if self.is_joints:
+            print('Playing back Joint keyframes!!!!!!!')
             if not self.JOINT_TOPIC in step:
                 rospy.logwarn("Joint topic {} not found at dt {}. Check your bagfile!".format(self.JOINT_TOPIC, self.dt))
 
@@ -123,7 +124,7 @@ class KTSegment(object):
                            for joint in arm_joints])
             self.end = target
         else:
-
+            print('Playing back EEF keyframes!!!!!!!')
             if rel_frame is None:
                 rel_frame = self.ARM_FRAME
             else:
@@ -359,6 +360,7 @@ class KTInterface(object):
     EEF_FRAME = 'right_ee_link'
 
     def __init__(self, save_dir, planner, gripper_interface, is_joints=True, physical_arm=None):
+        print('##################Initialized KT Interface')
         if not os.path.isdir(os.path.expanduser(save_dir)):
             errstr = "Folder {} does not exist! Please create the folder and try again.".format(os.path.expanduser(save_dir))
             rospy.logerr(errstr)
@@ -714,12 +716,17 @@ class KTInterface(object):
 
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
+        print('************Moving keyframe')
         self.lock_arm()
         first_seg = KTSegment(self.planner, self.gripper, segment.frames,
                               segment.dt,
                               is_traj = False,
                               is_joints = self.is_joints)
         plan = first_seg.get_plan()
+        print('Plan: ',plan)
+
+        # print self.planner.group[0].get_planning_frame()
+        # print(self.planner.get_current_pose())
         success = False
         if plan is not None:
             success = self.planner.move_robot(plan)

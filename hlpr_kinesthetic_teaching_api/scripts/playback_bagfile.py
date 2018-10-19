@@ -44,17 +44,18 @@ if __name__=="__main__":
     rospy.init_node("kt_bagfile_playback")
 
     if os.environ["ROBOT_NAME"]=="2d_arm":
-        k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),False)
+        k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"),is_joints = False)
     else:
-        k = KTInterface("~/test_bagfiles",ArmMoveIt(), Gripper())
+    	print('else condition....')
+        k = KTInterface("~/test_bagfiles",ArmMoveIt(planning_frame='right_link_base', eef_frame='right_ee_link'), Gripper(), is_joints = False)
 
-    freezer = rospy.ServiceProxy('freeze_frames', Empty)
+    #freezer = rospy.ServiceProxy('freeze_frames', Empty)
     
     k.load_bagfile(sys.argv[1])
     
     k.move_to_keyframe(k.segment_pointer)
-    freezer()
+    #freezer()
     
     k.move_to_end()
-    freezer()
+    #freezer()
     k.stop_tf_threads()
