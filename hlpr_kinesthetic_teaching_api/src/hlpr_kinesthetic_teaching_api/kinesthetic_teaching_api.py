@@ -134,6 +134,8 @@ class KTSegment(object):
             if eef_key in step:
                 eef_msg = step[EEF_PREFIX+rel_frame]
                 target = eef_msg
+                print('**********Target**********')
+                print(target)
                 self.end = target
                 self.rel_frame = rel_frame
             else:
@@ -460,6 +462,7 @@ class KTInterface(object):
                 try:
                     trans, rot = listener.lookupTransform(links[0], links[1], rospy.Time())
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+                    # print(links[0], links[1])
                     rospy.logwarn_throttle(10, "eef publisher error (printed every 10s): " + str(e))
                     continue
                 msg = PoseStamped()
@@ -808,6 +811,7 @@ class KTInterface(object):
             s = map(lambda p: str(round(p[1],2)),s)
             return s
 
+        print('*****',current_pose)
         print "Current pose:", ",".join(abbr(current_pose))
 
     def move_to_start(self):
