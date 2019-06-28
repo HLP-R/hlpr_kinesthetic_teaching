@@ -145,7 +145,7 @@ class KTSegment(object):
                     rospy.logwarn("Not setting the end pose or rel_frame. If they are not set manually, errors will occur.")
 
 
-                
+
         match = None
         for s in step.keys():
             if self.GRIPPER_TOPIC in s:
@@ -283,14 +283,14 @@ class KTSegment(object):
             what_kind = "joint"
         else:
             what_kind = "eef"
-            
+
         rospy.loginfo("Making {} plan.".format(what_kind))
         plan = self.planner.plan_pose(target=self.end,
                                       is_joint_pos = self.is_joints,
                                       starting_config=start)
 
 
-        
+
         if plan is None or len(plan.joint_trajectory.points)==0:
             rospy.logwarn("No plan found. Trying again...")
             plan = self.planner.plan_pose(target=self.end,
@@ -332,17 +332,17 @@ class KTSegment(object):
                 header = self.rel_frame
 
         return {"type":header, "pose":end}
-    
+
     def __repr__(self):
         arr = self.as_dict()
-            
+
         text = "["+", ".join(map(lambda p: "{:<4}".format(p), arr["pose"]))+"]"
 
         if self.gripper_open:
             gripper_st = "open"
         else:
             gripper_st = "closed"
-            
+
         r = "<KTSegment {} {} {}>".format(gripper_st, arr["type"], text)
         return r
 
@@ -373,7 +373,7 @@ class HashableKTSegment(KTSegment):
                          round(self.end.pose.position.z,6), round(self.end.pose.orientation.x,6),
                          round(self.end.pose.orientation.y,6), round(self.end.pose.orientation.z,6),
                          round(self.end.pose.orientation.w,6), self.is_joints, self.gripper_open))
-        
+
 
     @classmethod
     def FromKTSegment(self, seg):
@@ -554,7 +554,7 @@ class KTInterface(object):
                 for topic, msg, raw_time in frame:
                     if topic == "{}relative".format(EEF_PREFIX):
                         continue
-                    
+
                     #raw time only matters for traj record; leaving it out for now
                     this_msg_time = prev_max_time + current_seg.dt
                     if this_msg_time > max_time:
@@ -585,7 +585,7 @@ class KTInterface(object):
             frame.append((topic, copy.deepcopy(self.msg_store[topic]), rospy.Duration(0.0)))
 
         frame.append(("is_joint_kf", Bool(data=self.is_joints), rospy.Duration(0.0)))
-            
+
         new_seg = KTSegment(self.planner, self.gripper, [frame],
                             dt, prev_seg = prev_seg,
                             next_seg = next_seg,
@@ -647,7 +647,7 @@ class KTInterface(object):
         else:
             self.first = self.segments[0]
             self.segment_pointer = self.first
-        
+
         if name[-4:]==".pkl":
             filename = name+".bag"
         elif name[-4:]==".bag":
@@ -715,7 +715,7 @@ class KTInterface(object):
                                  }
 
                 type_string = str(type(msg)).split(".")[1].split("'")[0]
-                
+
                 if topic.startswith(EEF_PREFIX):
                     # rospy.loginfo("Message on topic {} begins with {}, so interpreting it as "
                     #                "a PoseStamped.".format(topic, EEF_PREFIX))
@@ -769,7 +769,7 @@ class KTInterface(object):
             if i<len(msgs):
                 time = msgs[i][2]
             frames.append(frame)
-        self.load_frames(frames, load_joints)
+        self.load_segments_from_frames(frames, load_joints)
 
     #moves directly to the keyframe
     def move_to_keyframe(self, segment):
@@ -806,10 +806,10 @@ class KTInterface(object):
                 rospy.logerr("Error moving to keyframe. Aborting.")
                 return
 
-        
+
         rospy.loginfo("Moving from segment: {}".format(self.segment_pointer))
         rospy.loginfo("Moving to segment: {}".format(self.segment_pointer.next_seg))
-            
+
         segment = self.segment_pointer.next_seg
         success = False
         plan = segment.get_plan()
@@ -852,7 +852,7 @@ class KTInterface(object):
             success = self.move_to_keyframe(self.segment_pointer.prev_seg)
             self.wait_for_gripper()
 
-            
+
         if not success:
             rospy.logerr("Error moving to keyframe. Aborting.")
             return
@@ -902,7 +902,7 @@ class KTInterface(object):
         while self.segment_pointer.prev_seg is not None:
             self.move_backward()
 
-        
+
     def move_to_end(self):
         self.lock_arm()
 
@@ -1002,6 +1002,11 @@ class KTInterface(object):
         return saved
 
     def load_frames(self, frames, load_joints=None):
+        rospy.logwarn("this function has been renamed. Please change your "
+                      "code to call load_segments_from_frames.");
+        return self.load_segments_from_frames(frames, load_joints)
+
+    def load_segments_from_frames(self, frames, load_joints=None):
         if len(frames)==0:
             rospy.logwarn("No frames to load! Clearing segments...")
 
@@ -1013,11 +1018,17 @@ class KTInterface(object):
         time = frames[0][0][2]
         last_segment = None
         for frame in frames:
-            #subsample trajectory frames for now; could store multiple frames
-            #in one segment for a trajectory segment
+            """
+            if there are multiple pose messages that happen between this
+            keyframe and the next one, assume that this is a trajectory
+            keyframe (which could have been produced with a previous version of
+            the KT api). Convert the trajectory into a series of single joint
+            keyframes, discarding trajectory poses that are too close
+            together in time.
+            """
             new_time = frame[0][2]
             delta_t = new_time-time
-            
+
             if last_segment is not None and delta_t < self.MIN_DELTA_T:
                 dt = (new_time-time).to_sec()
                 rospy.logwarn("Skipping frame at time {}. Only {}s since last frame".format(new_time,dt))
