@@ -49,16 +49,16 @@ if __name__=="__main__":
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(default_planner="PRMStarkConfigDefault"), Gripper())
 
-    freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
+    #freezer = rospy.ServiceProxy('freeze_frames', FreezeFrame)
     
     k.load_bagfile(sys.argv[1], False)
     
-    freezer(FreezeFrameRequest.UNFREEZE)
+    #freezer(FreezeFrameRequest.UNFREEZE)
     rospy.sleep(2.0)
 
     k.move_to_keyframe(k.segment_pointer)
-    freezer(FreezeFrameRequest.FREEZE)
+    #freezer(FreezeFrameRequest.FREEZE)
     
     k.move_to_end()
-    freezer(FreezeFrameRequest.UNFREEZE)
+    #freezer(FreezeFrameRequest.UNFREEZE)
     k.stop_tf_threads()

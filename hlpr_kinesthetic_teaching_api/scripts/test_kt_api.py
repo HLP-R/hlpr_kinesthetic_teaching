@@ -170,6 +170,8 @@ if __name__=="__main__":
         print "Press enter to grab a keyframe; type 'd' to delete."
         print "'n' -> move to the next keyframe"
         print "'p' -> move to previous keyframe"
+	print "'fn' -> force move to the next keyframe"
+	print "'fp' -> force move to the previous keyframe"
         print "'h' -> move to current keyframe"
         print
         print "Type 's' to move to the start; 'e' to move to the end."
@@ -216,6 +218,14 @@ if __name__=="__main__":
                 print "Couldn't freeze frames; is freeze frame started from hlpr_manipulation utils?"
         elif r=='q':
             break
+        elif r =='fn':
+        	success = k.move_forward()
+        	if not success and not k.segment_pointer.next_seg is None:
+        		k.segment_pointer=k.segment_pointer.next_seg
+		elif r=='fp':
+			success = k.move_backward()
+			if not success and not k.segment_pointer.prev_seg is None:
+				k.segment_pointer=k.segment_pointer.prev_seg
         else:
             k.write_kf(r)
         
