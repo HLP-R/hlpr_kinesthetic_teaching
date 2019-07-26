@@ -96,6 +96,8 @@ if __name__=="__main__":
             has_name = True
             save_file = filename
 
+    print("I will save the file to " + full_save_path)
+
 
     if os.environ["ROBOT_NAME"]=="2d_arm":
         k = KTInterface(default_save_dir,Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"))

@@ -542,7 +542,8 @@ class KTInterface(object):
             rospy.logwarn("No frames recorded! Doing nothing.")
             return
 
-        bag = rosbag.Bag(os.path.join(self.save_dir, save_name), "w")
+        full_save_path = os.path.join(self.save_dir, save_name)
+        bag = rosbag.Bag(full_save_path, "w")
         if self.first is None:
             self.first = self.segments[0]
         current_seg = self.first
@@ -566,6 +567,8 @@ class KTInterface(object):
             prev_max_time = max_time
             current_seg = current_seg.next_seg
         bag.close()
+
+        print("wrote bagfile to " + str(full_save_path))
 
     def record_keyframe(self, frame_id=None):
         if frame_id == "" or frame_id is None:
