@@ -28,8 +28,10 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import rospy
+import argparse
 import os
+import rospy
+
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 from hlpr_manipulation_utils.srv import FreezeFrame, FreezeFrameRequest
 
@@ -41,34 +43,10 @@ else:
 
 default_save_dir = os.path.normpath(os.path.expanduser("~/test_bagfiles"))
 
-if __name__=="__main__":
-    rospy.init_node("kt_api_testing", disable_signals=True)
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-    # where to load
-    has_name = False
-    load_file = None
-    while not has_name:
-        print "Please enter a bagfile name to load or leave blank to start a new one."
-        filename = raw_input()
-        if filename == "":
-            has_name = True
-            continue
-
-        if filename[-4:]==".pkl":
-            raise NotImplementedError("pkl file exists with this name")
-        elif filename[-4:]==".bag":
-            filename = filename
-        else:
-            filename = filename+".bag"
-
-        full_load_path = os.path.join(default_save_dir, filename)
-        if os.path.isfile(full_load_path):
-            has_name = True
-            load_file = full_load_path
-
-    if load_file is not None:
-        print("I will load from {}".format(full_load_path))
-    # where to save
+def save():
     has_name = False
     while not has_name:
         print "Please enter a bagfile name to save to."
@@ -76,8 +54,8 @@ if __name__=="__main__":
 
         if filename[-4:]==".pkl":
             raise NotImplementedError("can't save to pkl yet")
-        elif filename[-4:]==".bag":
-            filename = filename
+        # elif filename[-4:]==".bag":
+        #     filename = filename
         else:
             filename = filename+".bag"
 
@@ -97,6 +75,60 @@ if __name__=="__main__":
             save_file = filename
 
     print("I will save the file to " + full_save_path)
+    k.write_bagfile(save_file)
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--tidy", help="clear the terminal after each keyframe", action="store_true")
+    args = parser.parse_args()
+    if args.tidy:
+        print("using tidy mode")
+        tidy = args.tidy
+    else:
+        tidy = False
+
+    rospy.init_node("kt_api_testing", disable_signals=True)
+
+    load_file = None
+    filename = None
+
+    if tidy:
+        clear_screen()
+    # where to load
+    has_action = False
+    action = None
+    while action is None:
+        print("Would you like to [o]pen a bag file or create a [n]ew one?")
+        provided_action = raw_input()
+        if provided_action in ["o", "n"]:
+            action = provided_action
+            break
+        else:
+            print("Please type either 'o' or 'n'.\n---")
+
+    if action == "o":
+        while load_file is None:
+            print("enter name of bag file to open:")
+            filename = raw_input()
+
+            if filename[-4:]==".pkl":
+                raise NotImplementedError("pkl file exists with this name")
+            else:
+                filename = filename + ".bag"
+
+            full_load_path = os.path.join(default_save_dir, filename)
+            if os.path.isfile(full_load_path):
+                has_name = True
+                load_file = full_load_path
+                print("Loading from {}".format(full_load_path))
+            else:
+                print("the file {} does not exist.\n---".format(full_load_path))
+    elif action == "n":
+        print("new creating new ")
+    else:
+        # should never get here
+        assert(False)
 
 
     if os.environ["ROBOT_NAME"]=="2d_arm":
@@ -120,12 +152,14 @@ if __name__=="__main__":
         if resp.lower() != 'n':
             k.move_to_start()
             k.move_to_keyframe(k.segment_pointer)
-        k.initialize(filename, is_joints=False)
+        k.initialize(is_joints=False)
 
     else:
         valid = False
         is_joints = None
         while True:
+            if tidy:
+                clear_screen()
             print "Type 'j' to save starting pose as a joint pose"
             print "Type 'e' to save starting pose as an eef pose"
             try:
@@ -139,21 +173,21 @@ if __name__=="__main__":
                 is_joints = False
                 break
 
-
         print "Move the arm to the desired starting pose and hit enter"
         raw_input()
 
-        k.initialize(filename, is_joints=is_joints)
+        k.initialize(is_joints=is_joints)
         k.record_keyframe()
 
     pause_tf_record = False
     while not rospy.is_shutdown():
-        
+        if tidy:
+            clear_screen()
         print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
         print "Current frames: "
+        if len(k.segments) > 0:
+            assert(k.first is not None)
         s = k.first
-        if s is None:
-            s = k.segments[0]
         while s is not None:
             if k.segment_pointer==s:
                 pref = " >"
@@ -169,19 +203,25 @@ if __name__=="__main__":
         else:
             mode = "eef keyframe"
         print "In {} mode. TF recording is {}.".format(mode, not pause_tf_record)
-        print "Press enter to grab a keyframe; type 'd' to delete."
-        print "'n' -> move to the next keyframe"
-        print "'p' -> move to previous keyframe"
-	print "'fn' -> force move to the next keyframe"
-	print "'fp' -> force move to the previous keyframe"
-        print "'h' -> move to current keyframe"
+        print "<Enter>: add a keyframe"
+        print "'d': delete current keyframe"
         print
-        print "Type 's' to move to the start; 'e' to move to the end."
-        print "Type 'r' to release the arm and 'l' to lock the arm."
-        print "Type 'o' to open gripper and 'c' to close."
-        print "Type 'j' to toggle joint keyframe mode."
-        print "Type 'q' to write to a bag and quit."
-        print "Type 'a' to toggle freezing of tf."
+        print "'n': move to the next keyframe"
+        print "'p': move to previous keyframe"
+        print "'s': move to the start"
+        print "'e': move to the end"
+        print "'fn': force move to the next keyframe"
+        print "'fp': force move to the previous keyframe"
+        print "'h': move to current keyframe"
+        print
+        print "'r': release the arm"
+        print "'l': lock the arm"
+        print "'o': open gripper"
+        print "'c': close gripper"
+        print "'j': toggle joint keyframe mode"
+        print "'a': toggle freezing of tf"
+        print "'w': write to a bag"
+        print "'q': quit (with optional write)"
         print "-"*60
         k.print_current_pose()
         print "-"*60
@@ -191,6 +231,7 @@ if __name__=="__main__":
         except KeyboardInterrupt:
             print "Quitting..."
             exit()
+            break
         if r == 'h':
             k.move_to_keyframe(k.segment_pointer)
         elif r=='d':
@@ -218,8 +259,34 @@ if __name__=="__main__":
                 freezer(FreezeFrameRequest.TOGGLE)
             except rospy.ServiceException as e:
                 print "Couldn't freeze frames; is freeze frame started from hlpr_manipulation utils?"
+        elif r=='w':
+            save()
         elif r=='q':
-            break
+            exit_cli = False
+            exit_loop = False
+            while not exit_loop:
+                print("would you like to save before exiting? [y]es/[n]o/[c]ancel")
+                resp = raw_input()
+                if resp not in ["y", "n", "c"]:
+                    continue
+                else:
+                    exit_loop = True
+
+                if resp == "y":
+                    save()
+                    exit_loop = True
+                    exit_cli = True
+                elif resp == "n":
+                    exit_loop = True
+                    exit_cli = True
+                elif resp == "c":
+                    exit_loop = True
+                    exit_cli = False
+                else:
+                    # should not get here
+                    assert(False)
+            if exit_cli:
+                break
         elif r =='fn':
         	success = k.move_forward()
         	if not success and not k.segment_pointer.next_seg is None:
@@ -232,5 +299,4 @@ if __name__=="__main__":
             k.write_kf(r)
         
     k.end()
-    k.write_bagfile(save_file)
     k.stop_tf_threads()
