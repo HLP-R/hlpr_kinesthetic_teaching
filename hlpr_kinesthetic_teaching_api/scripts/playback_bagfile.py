@@ -35,7 +35,7 @@ from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 from std_srvs.srv import Empty
 from hlpr_manipulation_utils.srv import FreezeFrame, FreezeFrameRequest
 
-if os.environ["ROBOT_NAME"]=="2d_arm":
+if os.environ.get("ROBOT_NAME") == "2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
 else:
     from hlpr_manipulation_utils.manipulator import Gripper
@@ -44,7 +44,7 @@ else:
 if __name__=="__main__":
     rospy.init_node("kt_bagfile_playback")
 
-    if os.environ["ROBOT_NAME"]=="2d_arm":
+    if os.environ.get("ROBOT_NAME") == "2d_arm":
         k = KTInterface("~/test_bagfiles",Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"))
     else:
         k = KTInterface("~/test_bagfiles",ArmMoveIt(default_planner="PRMStarkConfigDefault"), Gripper())

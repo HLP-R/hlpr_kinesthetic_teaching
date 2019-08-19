@@ -33,7 +33,7 @@ import os
 from hlpr_kinesthetic_teaching_api.kinesthetic_teaching_api import KTInterface
 from hlpr_manipulation_utils.srv import FreezeFrame, FreezeFrameRequest
 
-if os.environ["ROBOT_NAME"]=="2d_arm":
+if os.environ.get("ROBOT_NAME") == "2d_arm":
     from hlpr_2d_arm_sim.sim_arm_moveit import Gripper2D, Planner2D
 else:
     from hlpr_manipulation_utils.manipulator import Gripper
@@ -96,9 +96,9 @@ if __name__=="__main__":
             has_name = True
             save_file = filename
 
-
-    if os.environ["ROBOT_NAME"]=="2d_arm":
-        k = KTInterface(default_save_dir,Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"), Gripper2D("/sim_arm/gripper_state","/sim_arm/gripper_command"))
+    if os.environ.get("ROBOT_NAME") == "2d_arm":
+        k = KTInterface(default_save_dir, Planner2D("/sim_arm/joint_state", "/sim_arm/move_arm"),
+                        Gripper2D("/sim_arm/gripper_state", "/sim_arm/gripper_command"))
     else:
         k = KTInterface(default_save_dir,ArmMoveIt(), Gripper())
 
@@ -145,9 +145,14 @@ if __name__=="__main__":
         k.record_keyframe()
 
     pause_tf_record = False
+    robot_name = os.environ.get("ROBOT_NAME")
+    if robot_name is None:
+        print("Unable to read the robot name. Please set the ROBOT_NAME" \
+              " environment variable.")
+        robot_name = "not set"
     while not rospy.is_shutdown():
         
-        print "="*25 + "Robot: " + os.environ["ROBOT_NAME"] + "="*25
+        print "="*25 + "Robot: {}".format(robot_name) + "="*25
         print "Current frames: "
         s = k.first
         if s is None:

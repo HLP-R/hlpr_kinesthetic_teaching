@@ -57,22 +57,21 @@ EEF_PREFIX = 'eef_pose_'
 
 #segments are a double-linked list
 class KTSegment(object):
-    if os.environ['ROBOT_NAME'] == "2d_arm":
+    if os.environ.get("ROBOT_NAME") == "2d_arm":
         JOINT_TOPIC = "/sim_arm/joint_state"
     else:
         JOINT_TOPIC = "joint_states"
 
-
-    if os.environ['ROBOT_NAME'] == "2d_arm":
+    if os.environ.get("ROBOT_NAME") == "2d_arm":
         EEF_TOPIC = "/sim_arm/eef_pose"
         ARM_FRAME = None
     else:
         EEF_FRAME = "j2s7s300_ee_link"
         ARM_FRAME = "j2s7s300_link_base"
 
-    if os.environ['ROBOT_NAME'] == "poli2":
+    if os.environ.get("ROBOT_NAME") == "poli2":
         GRIPPER_TOPIC = "gripper/stat"
-    elif os.environ['ROBOT_NAME'] == "2d_arm":
+    elif os.environ.get("ROBOT_NAME") == "2d_arm":
         GRIPPER_TOPIC = "/sim_arm/gripper_state"
     else:
         GRIPPER_TOPIC = "/vector/right_gripper/stat"
@@ -391,7 +390,7 @@ class KTInterface(object):
     ARM_FRAME = 'j2s7s300_link_base'
     EEF_FRAME = 'j2s7s300_ee_link'
 
-    def __init__(self, save_dir, planner, gripper_interface, physical_arm=None, default_yaml_loc= None):
+    def __init__(self, save_dir, planner, gripper_interface, physical_arm=None, yaml_loc=None):
         rospy.loginfo("Initializing KT interface")
         rospy.loginfo("Getting save directory")
         if not os.path.isdir(os.path.expanduser(save_dir)):
@@ -401,21 +400,29 @@ class KTInterface(object):
 
         self.save_dir = os.path.normpath(os.path.expanduser(save_dir))
 
-
-        if default_yaml_loc is None:
+        if yaml_loc is None:
             pkg_dir = rospkg.RosPack().get_path('hlpr_kinesthetic_teaching_api')
-            if os.environ['ROBOT_NAME'] == "poli2":
-                rospy.loginfo("Getting yaml location for poli2...")
-                default_yaml_loc = (pkg_dir+'/yaml/poli2_topics.yaml')
-                rospy.loginfo("... location found!")
+            if os.environ.get("ROBOT_NAME") == "poli2":
+                rospy.loginfo("Using default yaml location for poli2...")
+                yaml_loc = (pkg_dir+'/yaml/poli2_topics.yaml')
+                if os.path.exists(yaml_loc) \
+                        and os.path.isfile(yaml_loc):
+                    rospy.loginfo("Default yaml found!")
+                else:
+                    rospy.logerr("could not find YAML file " + yaml_loc)
             else:
-                rospy.loginfo("Getting yaml location for poli2...")
-                default_yaml_loc = (pkg_dir+'/yaml/poli1_topics.yaml')
-                rospy.loginfo("... location found!")
+                rospy.loginfo("could not load ROBOT_NAME environment variable")
+                rospy.loginfo("Using default yaml location for poli1...")
+                yaml_loc = (pkg_dir+'/yaml/poli1_topics.yaml')
+                if os.path.exists(yaml_loc) \
+                        and os.path.isfile(yaml_loc):
+                    rospy.loginfo("Default yaml found!")
+                else:
+                    rospy.logerr("could not find YAML file " + yaml_loc)
 
         rospy.loginfo("Getting parameters...")
         default_traj_rate = 3
-        yaml_file_loc = rospy.get_param("~yaml_loc", default_yaml_loc)
+        yaml_file_loc = rospy.get_param("~yaml_loc", yaml_loc)
 
         using_real_arm = rospy.get_param("~physical_arm", True)
 
@@ -423,7 +430,7 @@ class KTInterface(object):
         object_frames = object_frames.split(",")
         object_frames = filter(lambda s: len(s)>0, object_frames)
 
-        if os.environ["ROBOT_NAME"]=="2d_arm":
+        if os.environ.get("ROBOT_NAME") == "2d_arm":
             using_real_arm = False
 
         if physical_arm is not None:
