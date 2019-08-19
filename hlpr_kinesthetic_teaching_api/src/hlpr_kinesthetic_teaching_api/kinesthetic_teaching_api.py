@@ -533,23 +533,51 @@ class KTInterface(object):
             rospy.logwarn("No segment pointer.  Have you recorded any keyframes?")
             return
 
-        if self.segment_pointer == self.first:
-            self.first = self.segment_pointer.next_seg
-            if self.segment_pointer.next_seg is not None:
-                self.segment_pointer.next_seg.set_prev(None)
-            self.segments.remove(self.segment_pointer)
-            self.segment_pointer = self.first
-        else:
+        # if self.segment_pointer == self.first:
+        #     self.first = self.segment_pointer.next_seg
+        #     if self.segment_pointer.next_seg is not None:
+        #         self.segment_pointer.next_seg.set_prev(None)
+        #     self.segments.remove(self.segment_pointer)
+        #     self.segment_pointer = self.first
+        # else:
+        #     self.segment_pointer.next_seg.set_prev(self.segment_pointer.prev_seg)
+        #     self.segments.remove(self.segment_pointer)
+        #     self.segment_pointer = self.segment_pointer.prev_seg
+
+        self.segments.remove(self.segment_pointer)
+        if self.segment_pointer.next_seg and self.segment_pointer.prev_seg:
+            # Case 1/4: in the middle
+            self.segment_pointer.prev_seg.set_next(self.segment_pointer.next_seg)
             self.segment_pointer.next_seg.set_prev(self.segment_pointer.prev_seg)
-            self.segments.remove(self.segment_pointer)
             self.segment_pointer = self.segment_pointer.prev_seg
+        elif not self.segment_pointer.next_seg and self.segment_pointer.prev_seg:
+            # Case 2/4: at the end
+            self.segment_pointer.prev_seg.set_next(None)
+            self.segment_pointer = self.segment_pointer.prev_seg
+        elif self.segment_pointer.next_seg and not self.segment_pointer.prev_seg:
+            # Case 3/4: at the start
+            self.segment_pointer.next_seg.set_prev(None)
+            self.first = self.segment_pointer.next_seg
+            self.segment_pointer = self.segment_pointer.next_seg
+        else:
+            # Case 4/4: the only keyframe
+            self.first = None
+            self.segment_pointer = None
+
+        if self.segment_pointer is not None:
+            self.move_to_keyframe(self.segment_pointer)
+        else:
+            print("attempted to move to current keyframe, but there is none!")
+
+
 
     def write_bagfile(self, save_name):
         if len(self.segments)==0:
             rospy.logwarn("No frames recorded! Doing nothing.")
             return
 
-        bag = rosbag.Bag(os.path.join(self.save_dir, save_name), "w")
+        full_save_path = os.path.join(self.save_dir, save_name)
+        bag = rosbag.Bag(full_save_path, "w")
         if self.first is None:
             self.first = self.segments[0]
         current_seg = self.first
@@ -574,6 +602,8 @@ class KTInterface(object):
             current_seg = current_seg.next_seg
         bag.close()
 
+        print("wrote bagfile to " + str(full_save_path))
+
     def record_keyframe(self, frame_id=None):
         if frame_id == "" or frame_id is None:
             frame_id = self.ARM_FRAME
@@ -594,11 +624,11 @@ class KTInterface(object):
         frame.append(("is_joint_kf", Bool(data=self.is_joints), rospy.Duration(0.0)))
 
         new_seg = KTSegment(self.planner, self.gripper, [frame],
-                            dt, prev_seg = prev_seg,
-                            next_seg = next_seg,
+                            dt, prev_seg = None,
+                            next_seg = None,
                             is_traj = False, is_joints=self.is_joints, rel_frame=frame_id)
-        saved = self.insert_segment(new_seg, prev_seg, next_seg)
-        if saved:
+        inserted = self.insert_segment(new_seg, prev_seg, next_seg)
+        if inserted:
             self.segment_pointer = new_seg
             if prev_seg is None and self.first is None:
                 rospy.logwarn("Setting this keyframe to first frame. This can result in odd behavior if the segment set is not empty.")
@@ -643,7 +673,7 @@ class KTInterface(object):
         self.segment_pointer = self.segments[segment_idx]
 
 
-    def initialize(self, name, is_joints = True):
+    def initialize(self, is_joints = True):
         self.is_joints = is_joints
         self.recording = True
         self.last_time = rospy.Time.now()
@@ -655,15 +685,6 @@ class KTInterface(object):
             self.first = self.segments[0]
             self.segment_pointer = self.first
 
-        if name[-4:]==".pkl":
-            filename = name+".bag"
-        elif name[-4:]==".bag":
-            filename = name
-        else:
-            filename = name+".bag"
-        full_save_path = self.save_dir+"/"+ filename
-        if os.path.isfile(full_save_path):
-            rospy.logwarn("Target output file already exists and will be overwritten when you save")
         self.release_arm()
 
 
@@ -960,14 +981,18 @@ class KTInterface(object):
         """
         Create a new segment unless it is very similar to the supplied previous segment.
         """
-        saved = False
+        should_save = False
+
+        over_threshold = False
+        type_mismatch = False
+        gripper_change = False
 
         if prev_seg is None:
-            self.segments.append(new_segment)
-            saved = True
+            # first keyframe, save automatically
+            should_save = True
         else:
-            should_make_new = True
-            #only check if both are the same type
+            # there's a previous segment, compare with it
+            # only check if both are the same type
             if new_segment.is_joints and prev_seg.is_joints:
                 target = new_segment.get_end_joints()
                 last_target = prev_seg.get_end_joints()
@@ -977,8 +1002,8 @@ class KTInterface(object):
                     d1 = abs(last_target[joint]-target[joint])
                     if  d1 > dist:
                         dist = d1
-                should_make_new = dist > self.JOINT_MOVE_THRESH
-                should_make_new |= new_segment.gripper_open==prev_seg.gripper_open
+                if dist > self.JOINT_MOVE_THRESH:
+                    over_threshold = True
             elif (not new_segment.is_joints) and (not prev_seg.is_joints):
                 # both are EEF keyframes
                 target = new_segment.end
@@ -987,26 +1012,33 @@ class KTInterface(object):
                          target.pose.position.y - last_target.pose.position.y,
                          target.pose.position.z - last_target.pose.position.z]
                 for axis in delta:
-                    should_make_new |= abs(axis) > self.XYZ_MOVE_THRESH
+                    over_threshold |= abs(axis) > self.XYZ_MOVE_THRESH
                 delta = [target.pose.orientation.x - last_target.pose.orientation.x,
                          target.pose.orientation.y - last_target.pose.orientation.y,
                          target.pose.orientation.z - last_target.pose.orientation.z,
                          target.pose.orientation.w - last_target.pose.orientation.w]
                 for axis in delta:
-                    should_make_new |= abs(axis) > self.QUAT_MOVE_THRESH
-                should_make_new |= new_segment.gripper_open==prev_seg.gripper_open
-            if should_make_new:
-                self.segments.append(new_segment)
-                new_segment.set_prev(prev_seg)
-                saved = True
+                    over_threshold |= abs(axis) > self.QUAT_MOVE_THRESH
             else:
-                # didn't move
-                rospy.logwarn("Robot didn't move; not saving keyframe")
+                type_mismatch = True
 
-        if saved and next_seg is not None:
-            new_segment.set_next(next_seg)
+            gripper_change = new_segment.gripper_open != prev_seg.gripper_open
+            
+            print("gripper_change: " + str(gripper_change))
+            print("over_threshold: " + str(over_threshold))
+            print("type_mismatch: " + str(type_mismatch))
+            should_save = gripper_change | over_threshold | type_mismatch
 
-        return saved
+        if should_save:
+            self.segments.append(new_segment)
+            if prev_seg is not None:
+                new_segment.set_prev(prev_seg)
+            if next_seg is not None:
+                new_segment.set_next(next_seg)
+        else:
+            rospy.logwarn("Robot state didn't change; not saving keyframe")
+
+        return should_save
 
     def load_frames(self, frames, load_joints=None):
         rospy.logwarn("this function has been renamed. Please change your "
