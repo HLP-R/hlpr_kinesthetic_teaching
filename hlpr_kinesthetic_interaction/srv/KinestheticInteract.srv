@@ -1,4 +1,0 @@
-bool enableKInteract    # true if you want to enable kinesthetic interaction mode
----
-bool success            # true if successfully transitioned turned on or off kinesthetic mode
-
