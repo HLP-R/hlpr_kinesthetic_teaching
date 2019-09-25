@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Start the demonstration playback action server -->
+    <node name="kf_tracker" pkg="hlpr_record_demonstration" type="kf_tracker.py" respawn="false" output="screen" />
+    <node name="demo_playback_server" pkg="hlpr_record_demonstration" type="playback_demo_action_server_refactor.py" respawn="false" output="screen" />
+
+</launch>

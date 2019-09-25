@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="topic_loc" default="$(find hlpr_record_demonstration)/data/topics.yaml"/>
+    <arg name="start_eef_pub" default="true"/>
+    <arg name="eef_link" default="/right_ee_link"/>
+    <arg name="eef_rate" default="100"/>
+
+    <!-- Start the demonstration recording action server -->
+    <node name="demo_record_server" pkg="hlpr_record_demonstration" type="record_demonstration_action_server.py" respawn="false" output="screen" >
+        <param name="yaml_loc" value="$(arg topic_loc)"/>
+    </node>
+
+    <!-- Start the EEF publisher node -->
+    <node name="eef_pub" pkg="hlpr_record_demonstration" type="eef_publisher.py" respawn="false" output="screen" if="$(arg start_eef_pub)">
+        <param name="eef_link" value="$(arg eef_link)"/>
+        <param name="eef_rate" value="$(arg eef_rate)"/>
+    </node>
+
+</launch>

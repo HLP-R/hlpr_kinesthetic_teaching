@@ -1,0 +1,15 @@
+#part 1 = goal, sent by client
+string bag_file_name
+bool eef_only # If this is set to True - then the target_topic should have EEF Pose values
+string target_topic # What topic in the bag file is the goal in (e.g. eef_pose, joint_states)
+string zero_marker # The label of the detected object in the scene to which all keyframes will be relative
+bool vis_only # If this is set to True - the we only will visualize the action
+---
+#part 2 = result, sent by server
+#how many keyframes recorded
+duration time_elapsed
+moveit_msgs/RobotTrajectory planned_trajectory
+---
+#part 3 = feedback, sent periodically during execution
+duration time_elapsed
+

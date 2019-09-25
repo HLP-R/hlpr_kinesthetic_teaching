@@ -1,0 +1,5 @@
+int8    kf_num      # The keyframe number we're changing it to
+bool    increment   # Increase the keyframe count by 1
+bool    decrement   # Decrease the keyframe count by 1
+---
+bool    response    # We were successful
