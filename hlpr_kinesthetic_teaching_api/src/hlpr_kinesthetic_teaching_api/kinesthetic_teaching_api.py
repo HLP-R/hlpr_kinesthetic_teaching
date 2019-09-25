@@ -55,6 +55,10 @@ from robotiq_85_msgs.msg import GripperStat
 # used by both KTSegment and KTInterface
 EEF_PREFIX = 'eef_pose_'
 
+GRIPPER_OPEN_THRESH = 0.94
+def gripper_commanded_pos_is_open(pos):
+    return pos < GRIPPER_OPEN_THRESH
+
 #segments are a double-linked list
 class KTSegment(object):
     if os.environ.get("ROBOT_NAME") == "2d_arm":
@@ -76,7 +80,6 @@ class KTSegment(object):
     else:
         GRIPPER_TOPIC = "/vector/right_gripper/stat"
 
-    GRIPPER_OPEN_THRESH = 0.06
 
     def __init__(self, planner, gripper_interface, frames, delta_t,
                  prev_seg = None, next_seg = None,
@@ -151,12 +154,12 @@ class KTSegment(object):
                 match = s
                 break
         if match is not None:
-            self.gripper_open = step[match].requested_position > self.GRIPPER_OPEN_THRESH
+            self.gripper_open = gripper_commanded_pos_is_open(step[match].requested_position)
         else:
             if gripper_open is None:
                 if self.gripper is None:
                     raise RuntimeError("you must supply a gripper or gripper_open value")
-                gripper_open = self.gripper.get_pos() > self.GRIPPER_OPEN_THRESH
+                gripper_open = gripper_commanded_pos_is_open(self.gripper.get_pos())
             self.gripper_open = gripper_open
 
         self.data = step
@@ -382,7 +385,6 @@ class HashableKTSegment(KTSegment):
 class KTInterface(object):
     MIN_DELTA_T = rospy.Duration(0.1)
     JOINT_MOVE_THRESH = 0.01  # 0.01radians ~= 0.57degrees
-    GRIPPER_OPEN_THRESH = 0.06 #same as in KTSegment
     XYZ_MOVE_THRESH = 0.005  # 5mm
     QUAT_MOVE_THRESH = 0.01 # ???
     ARM_RELEASE_SERVICE = '/j2s7s300_driver/in/start_force_control'
@@ -495,7 +497,7 @@ class KTInterface(object):
 
     def gripper_is_open(self):
         if self.using_real_arm:
-            return self.gripper.get_commanded_pos()>=self.GRIPPER_OPEN_THRESH
+            return gripper_commanded_pos_is_open(self.gripper.get_commanded_pos())
         else:
             return self.sim_gripper_open
 
@@ -844,7 +846,6 @@ class KTInterface(object):
         if plan is not None:
             self.set_gripper(segment.gripper_open)
             success = self.planner.move_robot(plan)
-            self.wait_for_gripper()
         if not success:
                 rospy.logerr("Error moving to keyframe. Aborting.")
                 return
@@ -874,11 +875,9 @@ class KTInterface(object):
             if plan is not None:
                 self.set_gripper(self.segment_pointer.prev_seg.gripper_open)
                 success = self.planner.move_robot(plan)
-                self.wait_for_gripper()
         else:
             self.set_gripper(self.segment_pointer.prev_seg.gripper_open)
             success = self.move_to_keyframe(self.segment_pointer.prev_seg)
-            self.wait_for_gripper()
 
 
         if not success:
@@ -898,7 +897,7 @@ class KTInterface(object):
             return False
         current_pose = self.planner.get_current_pose(simplify=False)
         matches = [abs(end_pose[j]-current_pose[j])<self.JOINT_MOVE_THRESH for j in end_pose]
-        return all(matches) and (self.gripper.get_commanded_pos() > self.GRIPPER_OPEN_THRESH) == segment.gripper_open
+        return all(matches) and (self.gripper_is_open()) == segment.gripper_open
 
     def print_current_pose(self):
         current_pose = self.planner.get_current_pose(simplify=False)
@@ -959,11 +958,13 @@ class KTInterface(object):
         self.arm_lock_srv()
 
     def open_gripper(self):
-        self.gripper.open()
+        self.gripper.open(block=False)
+        self.wait_for_gripper()
         self.sim_gripper_open=True
 
     def close_gripper(self):
-        self.gripper.close()
+        self.gripper.close(block=False)
+        self.wait_for_gripper()
         self.sim_gripper_open=False
 
     def set_gripper(self, gripper_open):

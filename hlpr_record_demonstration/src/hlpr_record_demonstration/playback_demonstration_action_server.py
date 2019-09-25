@@ -115,7 +115,6 @@ class PlaybackKFDemoAction(object):
         # Check the gripper state initially and set
         self.gripper[gripper_side].set_pos(pos)
 
-        
     #start performing the playback_keyframe_demo action
     #goal includes the bagfile name for this demo
     def do_playback_keyframe_demo(self, goal):
